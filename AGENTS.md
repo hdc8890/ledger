@@ -13,6 +13,62 @@ Companion docs:
 
 ---
 
+## Doc Map — Read the Right Thing First
+
+Every task starts by reading the right documents. Use this map.
+
+### Before any task
+| Question | Read |
+|----------|------|
+| What are we building? | `docs/ROADMAP.md` |
+| Where are we right now? What phase? | `docs/STATUS.md` |
+| What decisions are already locked? | `docs/STATUS.md` → Decisions Locked |
+| How is the system designed? | `ARCHITECTURE.md` |
+| What stack/tools do we use and why? | `docs/STACK.md` |
+| What are the coding + commit rules? | This file (`AGENTS.md`) |
+
+### When working on a specific phase
+| Task | Read |
+|------|------|
+| Understand what to build in Phase 1 | `docs/phases/phase-1-foundation.md` |
+| Understand what to build in Phase 2 | `docs/phases/phase-2-dashboards.md` |
+| Understand what to build in Phase 3 | `docs/phases/phase-3-ai-chat.md` |
+| Understand what to build in Phase 4 | `docs/phases/phase-4-enrichment.md` |
+| Understand what to build in Phase 5 | `docs/phases/phase-5-memory.md` |
+| Understand what to build in Phase 6 | `docs/phases/phase-6-planning.md` |
+
+Each phase file contains: **goal**, **task breakdown**, **schema
+additions**, **risks**, and **definition of done**. A phase is the
+primary spec for what to build — do not contradict it without
+updating the file.
+
+### When the docs themselves need updating
+| Situation | Update |
+|-----------|--------|
+| A phase starts or completes | `docs/STATUS.md` phase table |
+| A new decision is made | `docs/STATUS.md` → move from Open to Locked |
+| A blocker is discovered | `docs/STATUS.md` → Blockers |
+| System design changes | `ARCHITECTURE.md` |
+| Stack choice changes | `docs/STACK.md` + `ARCHITECTURE.md` |
+| Phase scope changes | The relevant `docs/phases/phase-N-*.md` |
+| New coding rule needed | `AGENTS.md` |
+
+### Doc authority hierarchy
+When docs conflict, this order wins:
+
+1. `docs/STATUS.md` — overrides everything for current project state
+2. `ARCHITECTURE.md` — overrides phase plans for system design
+3. `docs/phases/phase-N-*.md` — overrides general stack doc for
+   phase-specific decisions
+4. `docs/STACK.md` — baseline for all phases
+5. `docs/ROADMAP.md` — product vision; doesn't prescribe
+   implementation details
+
+If you find a conflict between docs, fix the lower-priority doc to
+match the higher-priority one, and note the change in the PR.
+
+---
+
 ## 0. Prime Directives
 
 1. **Manual overrides always win.** Never write user-owned data
@@ -33,8 +89,9 @@ Companion docs:
 
 Before writing code:
 
-- **Read first.** Open `ARCHITECTURE.md`, the relevant phase in
-  `tech_stack_and_phase_plans.md`, and the existing schema in
+- **Read first.** Open `ARCHITECTURE.md`, `docs/STATUS.md` (current
+  phase + locked decisions), the relevant phase plan in
+  `docs/phases/`, and the existing schema in
   `packages/db/schema.ts`. Do not duplicate or contradict them.
 - **State the goal in one sentence** in your plan or PR
   description. If you can't, you don't understand the task yet.
