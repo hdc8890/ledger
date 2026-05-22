@@ -1,62 +1,56 @@
-# Ledger — AI Financial Operating System
+# Ledger
 
-A personal-first, chat-driven financial OS. Dashboards display state.
-A conversational AI agent drives intent. Memory creates personalization.
+A personal AI financial operating system. Instead of manually maintaining
+dashboards and budgets, you talk to an agent that understands your money.
 
-> "Create a budget that lets us save another $1,500/month"
-> "Why did our net worth drop this month?"
-> "Costco should mostly count as groceries"
+> **"Create a budget that lets us save another $1,500/month"**
+> → Analyzes your income, recurring bills, and spending trends. Returns
+> a concrete plan for your approval.
+
+> **"Why did our net worth drop this month?"**
+> → Traces the delta across accounts, assets, and liabilities. Explains
+> the actual cause.
+
+> **"Costco should mostly count as groceries"**
+> → Remembered. Applied to past and future transactions.
+
+Dashboards exist — but they're passive views. The agent is the
+primary interface.
 
 ---
 
-## Documentation
+## How it works
 
-### Repo-level (root)
-| Doc | Purpose |
-|-----|---------|
-| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | System design, data model, request flows, tech stack |
-| [`AGENTS.md`](./AGENTS.md) | Coding standards, Git practices, agent operating rules |
-
-### Project state (`docs/`)
-| Doc | Purpose |
-|-----|---------|
-| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Product vision, core philosophy, MVP scope |
-| [`docs/STATUS.md`](./docs/STATUS.md) | Current phase, decisions locked, open decisions, blockers |
-| [`docs/STACK.md`](./docs/STACK.md) | Stack rationale, cross-cutting concerns, what to defer |
-
-### Phase plans (`docs/phases/`)
-| Doc | Purpose |
-|-----|---------|
-| [`phase-1-foundation.md`](./docs/phases/phase-1-foundation.md) | Auth, Plaid, Postgres, sync jobs |
-| [`phase-2-dashboards.md`](./docs/phases/phase-2-dashboards.md) | Net worth, cash flow, asset, debt dashboards |
-| [`phase-3-ai-chat.md`](./docs/phases/phase-3-ai-chat.md) | Chat UI, tool calling, safe write proposals |
-| [`phase-4-enrichment.md`](./docs/phases/phase-4-enrichment.md) | Merchant normalization, categorization, transfer detection |
-| [`phase-5-memory.md`](./docs/phases/phase-5-memory.md) | Persistent preferences, household rules, pgvector memory |
-| [`phase-6-planning.md`](./docs/phases/phase-6-planning.md) | Goal-based budgets, what-if simulation, progress tracking |
+```
+Your banks (via Plaid) → normalized transaction data
+                              ↓
+                     AI enrichment layer
+               (categorization, merchant normalization,
+                transfer detection, recurring bills)
+                              ↓
+              Conversational agent with financial tools
+               (query, summarize, plan, edit, remember)
+                              ↓
+                    Chat  ·  Dashboards  ·  Goals
+```
 
 ---
 
 ## Stack
 
-- **App** — Next.js 15 (App Router) + TypeScript + Tailwind + shadcn/ui
-- **AI** — Vercel AI SDK · Claude Sonnet · gpt-4o-mini · text-embedding-3-small
-- **DB** — Postgres (Neon) + pgvector · Drizzle ORM
-- **Auth** — Clerk
+- **App** — Next.js 15 · TypeScript · Tailwind · shadcn/ui
+- **AI** — Vercel AI SDK · Claude Sonnet · GPT-4o-mini · pgvector memory
+- **Data** — Postgres on Neon · Drizzle ORM · Plaid
 - **Jobs** — Inngest
+- **Auth** — Clerk
 - **Hosting** — Vercel
 
 ---
 
-## Roadmap Phases
+## Status
 
-| Phase | Focus | Status |
-|-------|-------|--------|
-| 1 | Foundation — auth, Plaid, transactions, sync | 🔲 |
-| 2 | Dashboard MVP — net worth, cash flow, assets, debt | 🔲 |
-| 3 | AI Chat MVP — tool calling, queries, safe edits | 🔲 |
-| 4 | AI Enrichment — categorization, merchant normalization, transfers | 🔲 |
-| 5 | Memory Layer — preferences, household rules, override persistence | 🔲 |
-| 6 | Goal-Based Planning — budgets, forecasts, what-if | 🔲 |
+Early development. See [`docs/STATUS.md`](./docs/STATUS.md) for current
+phase and progress.
 
 ---
 
@@ -66,10 +60,7 @@ A conversational AI agent drives intent. Memory creates personalization.
 
 ---
 
-## Core Principles
+## Learn more
 
-- Dashboards display state — chat drives intent
-- Manual overrides always win
-- Every AI-written field carries a `source` and `confidence`
-- Write proposals require explicit user approval before committing
-- Reversibility: every mutation is auditable
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system design, data model, request flows
+- [`docs/`](./docs/) — roadmap, stack decisions, and phase plans
