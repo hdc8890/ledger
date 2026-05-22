@@ -3,8 +3,8 @@
 This document describes the system architecture of the AI Financial
 Operating System. It is the canonical reference for *how* the system
 is built. For *what* we are building and *why*, see
-`ai_financial_operating_system_roadmap.md`. For phase-by-phase build
-plans, see `tech_stack_and_phase_plans.md`.
+`docs/ROADMAP.md`. For stack rationale and per-phase build plans, see
+`docs/STACK.md` and `docs/phases/`.
 
 ---
 
@@ -265,7 +265,7 @@ Revalidate affected RSC routes
 | Hosting             | Vercel                                     |
 | Errors              | Sentry                                     |
 
-See `tech_stack_and_phase_plans.md` for rationale and alternatives.
+See `docs/STACK.md` for rationale and alternatives.
 
 ---
 
@@ -281,8 +281,11 @@ ledger/
   inngest/                  # Job definitions
   ARCHITECTURE.md
   AGENTS.md
-  ai_financial_operating_system_roadmap.md
-  tech_stack_and_phase_plans.md
+  docs/
+    ROADMAP.md
+    STATUS.md
+    STACK.md
+    phases/
   README.md
 ```
 

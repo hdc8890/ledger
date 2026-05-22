@@ -6,8 +6,10 @@ designing, coding, or committing.
 
 Companion docs:
 - `ARCHITECTURE.md` — how the system is built
-- `ai_financial_operating_system_roadmap.md` — what we're building
-- `tech_stack_and_phase_plans.md` — per-phase build plans
+- `docs/ROADMAP.md` — what we're building and why
+- `docs/STATUS.md` — current project state
+- `docs/STACK.md` — stack rationale and cross-cutting concerns
+- `docs/phases/` — per-phase executable build plans
 
 ---
 

@@ -11,12 +11,28 @@ A conversational AI agent drives intent. Memory creates personalization.
 
 ## Documentation
 
+### Repo-level (root)
 | Doc | Purpose |
 |-----|---------|
 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | System design, data model, request flows, tech stack |
 | [`AGENTS.md`](./AGENTS.md) | Coding standards, Git practices, agent operating rules |
-| [`ai_financial_operating_system_roadmap.md`](./ai_financial_operating_system_roadmap.md) | Product vision, core philosophy, MVP scope |
-| [`tech_stack_and_phase_plans.md`](./tech_stack_and_phase_plans.md) | Stack rationale + per-phase build plans (Phases 1–6) |
+
+### Project state (`docs/`)
+| Doc | Purpose |
+|-----|---------|
+| [`docs/ROADMAP.md`](./docs/ROADMAP.md) | Product vision, core philosophy, MVP scope |
+| [`docs/STATUS.md`](./docs/STATUS.md) | Current phase, decisions locked, open decisions, blockers |
+| [`docs/STACK.md`](./docs/STACK.md) | Stack rationale, cross-cutting concerns, what to defer |
+
+### Phase plans (`docs/phases/`)
+| Doc | Purpose |
+|-----|---------|
+| [`phase-1-foundation.md`](./docs/phases/phase-1-foundation.md) | Auth, Plaid, Postgres, sync jobs |
+| [`phase-2-dashboards.md`](./docs/phases/phase-2-dashboards.md) | Net worth, cash flow, asset, debt dashboards |
+| [`phase-3-ai-chat.md`](./docs/phases/phase-3-ai-chat.md) | Chat UI, tool calling, safe write proposals |
+| [`phase-4-enrichment.md`](./docs/phases/phase-4-enrichment.md) | Merchant normalization, categorization, transfer detection |
+| [`phase-5-memory.md`](./docs/phases/phase-5-memory.md) | Persistent preferences, household rules, pgvector memory |
+| [`phase-6-planning.md`](./docs/phases/phase-6-planning.md) | Goal-based budgets, what-if simulation, progress tracking |
 
 ---
 
