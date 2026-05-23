@@ -119,5 +119,50 @@ export async function getSnapshotDatesBetween(
   return new Set(rows.map((r) => r.snapshotDate));
 }
 
+/**
+ * Fetch the most recent snapshot on or before `targetDate` (YYYY-MM-DD).
+ * Used by the Asset dashboard to compute per-kind 30d/1y deltas from
+ * `snapshot.breakdown`.
+ *
+ * Returns undefined if no snapshots exist before or on the target date.
+ */
+export async function getSnapshotNearDate(
+  userId: UserId,
+  targetDate: string,
+): Promise<NetWorthSnapshotRow | undefined> {
+  const rows = await db
+    .select()
+    .from(netWorthSnapshots)
+    .where(
+      and(
+        eq(netWorthSnapshots.userId, userId),
+        lte(netWorthSnapshots.snapshotDate, targetDate),
+      ),
+    )
+    .orderBy(sql`${netWorthSnapshots.snapshotDate} desc`)
+    .limit(1);
+  return rows[0];
+}
+
+/**
+ * Parse the per-kind breakdown from a net worth snapshot's jsonb field.
+ * Values are stored as bigint-as-strings (e.g. `{ home: "45000000" }`).
+ * Returns an empty object for any unrecognised or malformed input — never throws.
+ */
+export function parseSnapshotBreakdown(breakdown: unknown): Record<string, bigint> {
+  if (breakdown == null || typeof breakdown !== 'object' || Array.isArray(breakdown)) return {};
+  const result: Record<string, bigint> = {};
+  for (const [key, val] of Object.entries(breakdown as Record<string, unknown>)) {
+    if (typeof val === 'string') {
+      try {
+        result[key] = BigInt(val);
+      } catch {
+        // Skip malformed bigint strings rather than crashing callers.
+      }
+    }
+  }
+  return result;
+}
+
 // Re-export for callers that import branded types alongside queries.
 export type { NetWorthSnapshotId };
