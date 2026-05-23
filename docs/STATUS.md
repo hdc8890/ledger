@@ -32,7 +32,7 @@ Status legend: 🔲 Not started · 🔄 In progress · ✅ Done · 🚧 Blocked
 
 These are set. Don't revisit without a strong reason.
 
-- **Monorepo vs single Next.js app**: Single Next.js app to start; extract pnpm workspace at Phase 4 friction
+- **Monorepo vs single Next.js app**: pnpm workspace active now; `apps/web/` holds all Phase 1–3 code; additional `packages/` extracted at Phase 4
 - **Stack**: Next.js 15 + TypeScript + Tailwind + Drizzle + Neon + Clerk + Inngest + Vercel AI SDK
 - **Primary AI model**: Claude Sonnet (reasoning/tools), `gpt-4o-mini` (enrichment), `text-embedding-3-small` (embeddings)
 - **Money representation**: `bigint` cents — never float

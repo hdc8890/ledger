@@ -273,12 +273,12 @@ See `docs/STACK.md` for rationale and alternatives.
 
 ```
 ledger/
-  apps/web/                 # Next.js app (routes, components)
-  packages/db/              # Drizzle schema, migrations, typed queries
-  packages/ai/              # Tool registry, prompts, memory client
-  packages/plaid/           # Plaid client + sync logic
-  packages/shared/          # Zod schemas, money/date utils, types
-  inngest/                  # Job definitions
+  apps/web/                 # Next.js app (routes, components, src/)
+  packages/db/              # Drizzle schema, migrations, typed queries (Phase 4+)
+  packages/ai/              # Tool registry, prompts, memory client (Phase 4+)
+  packages/plaid/           # Plaid client + sync logic (Phase 4+)
+  packages/shared/          # Zod schemas, money/date utils, types (Phase 4+)
+  inngest/                  # Job definitions (Phase 4+)
   ARCHITECTURE.md
   AGENTS.md
   docs/
@@ -289,8 +289,9 @@ ledger/
   README.md
 ```
 
-Start as a single Next.js app; extract into a pnpm workspace at the
-first sign of friction (expected around Phase 4).
+The repo is a pnpm workspace. `apps/web/` holds all Phase 1–3 code.
+Additional `packages/` will be extracted from `apps/web/src/` when
+cross-package sharing becomes necessary (expected around Phase 4).
 
 ---
 
