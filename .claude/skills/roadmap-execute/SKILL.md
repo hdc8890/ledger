@@ -6,11 +6,40 @@ description: Pick up the next roadmap item, build context, plan, execute (code +
 # Roadmap Execution Workflow
 
 You are executing a non-trivial roadmap item end-to-end. Follow the DAG
-below in order. Do **not** skip steps; each one gates the next. Stop and
-ask the user when a step explicitly says so.
+below in order. Do **not** skip steps; each one gates the next.
 
 Authority and doc rules come from `AGENTS.md`. Re-read its "Doc Map" and
 "Prime Directives" sections before starting if you haven't this session.
+
+---
+
+## Self-Confidence Protocol
+
+At each decision gate marked **[GATE]** below, rate your confidence
+**1–10** before deciding whether to proceed or ask the human.
+
+**Threshold: 7 — proceed automatically if confidence ≥ 7; pause and ask
+the human if confidence < 7.**
+
+Always output your rating in a brief inline block:
+```
+[Confidence: N/10 — <one-sentence rationale>]
+```
+
+**Factors that lower confidence (push toward asking):**
+- Docs are ambiguous, missing, or contradict each other
+- Two or more viable approaches with substantially different tradeoffs
+- Decision affects user-owned data, irreversible schema changes, or
+  data loss
+- A new LLM call with estimated per-request cost > $0.01
+- The original prompt gives no signal about which direction to take
+
+**Factors that raise confidence (push toward self-deciding):**
+- STATUS.md unambiguously identifies the next task
+- The phase plan already answers the design question
+- Existing code establishes a clear pattern to follow
+- The choice is low-risk and easily reversible
+- The tradeoff is cosmetic or implementation-detail only
 
 ---
 
@@ -29,9 +58,12 @@ top unfinished task in the current phase plan. If STATUS lists a
 blocker that affects it, surface the blocker before proceeding.
 
 Output to the user: a 2–4 line summary of "what" and "why this is
-next", and the phase + section it comes from. Wait for user
-confirmation (or a redirect) before continuing — unless the user's
-original prompt already named the specific task.
+next", and the phase + section it comes from.
+
+**[GATE — task selection]** Rate your confidence that you have
+identified the correct next task. If confidence ≥ 7, proceed to Step 2
+immediately. If confidence < 7, use `ask_user` to confirm the task with
+the user before continuing.
 
 ## Step 2 — Build context and clarify
 
@@ -48,9 +80,14 @@ For the chosen task:
   unclear override path for an AI-written field, unclear cost/latency
   tradeoff for a new LLM call.
 
-**Use the `ask_user` tool** (one focused question at a time) for any
-blocking question. Do not invent answers. If there are no blocking
-questions, say so and continue.
+**[GATE — blocking questions]** For each open question, rate your
+confidence that you can resolve it from existing docs and code alone.
+- If confidence ≥ 7 for a question: make a reasoned decision, document
+  your choice and rationale inline, and continue.
+- If confidence < 7 for a question: use `ask_user` (one focused
+  question at a time). Do not invent answers to low-confidence
+  questions.
+If there are no open questions, say so and continue.
 
 ## Step 3 — Create an execution plan
 
@@ -72,8 +109,12 @@ folder). Include:
 - **Commit plan** — one logical commit per concern; planned
   Conventional Commit subjects.
 
-Then call `exit_plan_mode` (if in plan mode) or otherwise show a
-compact summary to the user. Wait for approval before coding.
+Then show a compact summary to the user.
+
+**[GATE — plan approval]** Rate your confidence in the plan's
+correctness and completeness. If confidence ≥ 7, proceed to Step 4
+immediately without waiting for user approval. If confidence < 7, call
+`exit_plan_mode` and wait for explicit user approval before coding.
 
 ## Step 4 — Execute (code + tests together)
 
