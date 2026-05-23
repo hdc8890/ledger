@@ -7,9 +7,9 @@ Updated at the start/end of each phase or significant milestone.
 
 ## Current State
 
-**Stage:** Active development — Phase 2 in progress  
-**Active Phase:** Phase 2 — Dashboard MVP  
-**Next Milestone:** Phase 2 complete — all 7 tasks done ✅
+**Stage:** Active development — Phase 3 up next  
+**Active Phase:** Phase 3 — AI Chat MVP  
+**Last Completed:** Phase 2 — Dashboard MVP (all 7 tasks ✅)
 
 ---
 
@@ -18,8 +18,8 @@ Updated at the start/end of each phase or significant milestone.
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
 | 1 | Foundation | ✅ Done | All 6 tasks complete |
-| 2 | Dashboard MVP | 🔄 In progress | Task 1 (app shell + nav) ✅ · Task 2 (schema + query layer) ✅ · Task 3 (net worth dashboard) ✅ · Task 4 (cash flow dashboard) ✅ · Task 5 (asset dashboard) ✅ · Task 6 (debt dashboard) ✅ |
-| 3 | AI Chat MVP | 🔲 Not started | Awaits Phase 1 |
+| 2 | Dashboard MVP | ✅ Done | All 7 tasks complete — 4 dashboards, empty states, skeletons, RSC-first, coverage ≥70% |
+| 3 | AI Chat MVP | 🔄 In progress | Next up |
 | 4 | AI Enrichment | 🔲 Not started | Awaits Phase 3 |
 | 5 | Memory Layer | 🔲 Not started | Awaits Phase 3 |
 | 6 | Goal-Based Planning | 🔲 Not started | Awaits Phase 5 |
