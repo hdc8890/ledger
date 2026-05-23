@@ -60,6 +60,8 @@ vi.mock('drizzle-orm', () => ({
 import {
   getNetWorthSeries,
   getLatestNetWorthSnapshot,
+  getSnapshotNearDate,
+  parseSnapshotBreakdown,
   upsertNetWorthSnapshot,
 } from '../net-worth';
 import { brand } from '@/shared/types';
@@ -129,6 +131,69 @@ describe('getLatestNetWorthSnapshot', () => {
     mockLimit.mockResolvedValueOnce([]);
     const result = await getLatestNetWorthSnapshot(userId);
     expect(result).toBeUndefined();
+  });
+});
+
+describe('getSnapshotNearDate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockWhere.mockReturnValue({ orderBy: mockOrderBy });
+    mockOrderBy.mockReturnValue({ limit: mockLimit });
+  });
+
+  it('returns the closest snapshot on or before the target date', async () => {
+    mockLimit.mockResolvedValueOnce([sampleSnapshot]);
+    const result = await getSnapshotNearDate(userId, '2025-05-01');
+    expect(result).toEqual(sampleSnapshot);
+  });
+
+  it('returns undefined when no snapshot exists on or before the date', async () => {
+    mockLimit.mockResolvedValueOnce([]);
+    const result = await getSnapshotNearDate(userId, '2020-01-01');
+    expect(result).toBeUndefined();
+  });
+
+  it('applies lte filter with the target date', async () => {
+    mockLimit.mockResolvedValueOnce([]);
+    await getSnapshotNearDate(userId, '2025-04-01');
+    expect(mockWhere).toHaveBeenCalled();
+  });
+});
+
+describe('parseSnapshotBreakdown', () => {
+  it('parses valid bigint-string values', () => {
+    const result = parseSnapshotBreakdown({ home: '45000000', brokerage: '12000000' });
+    expect(result).toEqual({ home: 45000000n, brokerage: 12000000n });
+  });
+
+  it('returns empty object for null input', () => {
+    expect(parseSnapshotBreakdown(null)).toEqual({});
+  });
+
+  it('returns empty object for undefined input', () => {
+    expect(parseSnapshotBreakdown(undefined)).toEqual({});
+  });
+
+  it('returns empty object for non-object input', () => {
+    expect(parseSnapshotBreakdown('string')).toEqual({});
+    expect(parseSnapshotBreakdown(42)).toEqual({});
+    expect(parseSnapshotBreakdown([])).toEqual({});
+  });
+
+  it('skips malformed bigint strings without throwing', () => {
+    const result = parseSnapshotBreakdown({ home: '45000000', bad: 'not-a-number', good: '1000' });
+    expect(result).toEqual({ home: 45000000n, good: 1000n });
+  });
+
+  it('handles empty object', () => {
+    expect(parseSnapshotBreakdown({})).toEqual({});
+  });
+
+  it('skips non-string values', () => {
+    const result = parseSnapshotBreakdown({ home: 45000000, other: null });
+    expect(result).toEqual({});
   });
 });
 
