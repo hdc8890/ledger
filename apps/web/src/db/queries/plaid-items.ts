@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { plaidItems } from '@/db/schema';
 import type { PlaidItemId, UserId } from '@/shared/types';
@@ -61,6 +61,17 @@ export async function getPlaidItemByPlaidItemId(
     .where(eq(plaidItems.plaidItemId, plaidItemId))
     .limit(1);
   return rows[0];
+}
+
+/**
+ * Fetch all active (non-disconnected) Plaid items across all users.
+ * Used by cron functions to iterate every connected institution.
+ */
+export async function getAllActivePlaidItems(): Promise<PlaidItemRow[]> {
+  return db
+    .select()
+    .from(plaidItems)
+    .where(and(eq(plaidItems.status, 'active')));
 }
 
 /**
