@@ -19,6 +19,7 @@ export default defineConfig({
         'src/**/*.d.ts',
         // Next.js framework files — exercised by build/e2e, not unit tests.
         'src/app/**/layout.tsx',
+        'src/app/**/loading.tsx',
         'src/app/**/page.tsx',
         // Thin singletons / framework glue with no logic of our own.
         'src/lib/db.ts',
