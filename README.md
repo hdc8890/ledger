@@ -60,6 +60,26 @@ phase and progress.
 
 ---
 
+## Development
+
+```bash
+pnpm install          # install workspace deps
+pnpm dev              # run the web app (apps/web) in dev mode
+pnpm build            # production build
+pnpm typecheck        # strict TypeScript check
+pnpm lint             # ESLint
+pnpm test             # run the Vitest suite once
+pnpm test:watch       # Vitest in watch mode
+pnpm test:coverage    # Vitest + v8 coverage report (apps/web/coverage)
+```
+
+Tests live next to the code they cover, in `__tests__/`
+directories (`*.test.ts` / `*.test.tsx`). Coverage is enforced
+at 70% lines / functions / branches / statements — see
+`AGENTS.md` §5 for testing conventions.
+
+---
+
 ## Learn more
 
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md) — system design, data model, request flows
