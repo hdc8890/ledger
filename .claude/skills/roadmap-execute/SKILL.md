@@ -20,8 +20,10 @@ skill by calling `skill("confidence-score")` and passing it the gate
 question as context. The skill will return a `[Confidence: N/10]` block
 and either **PROCEED** or **ASK**.
 
-- If the skill returns **PROCEED**: continue to the next step
-  automatically.
+- If the skill returns **PROCEED**: skip the user interaction for this
+  gate and continue to the next step immediately — do **not** call
+  `ask_user`, `exit_plan_mode`, or any user-facing prompt **for this
+  gate**. Auto-continue.
 - If the skill returns **ASK**: use `ask_user` with the single focused
   question the skill provides before continuing.
 
@@ -95,7 +97,8 @@ Then show a compact summary to the user.
 
 **[GATE — plan approval]** Invoke `skill("confidence-score")` with the
 gate question: *"Is this plan correct and complete enough to execute
-without user approval?"* If PROCEED, go to Step 4 immediately. If ASK,
+without user approval?"* If PROCEED, skip `exit_plan_mode` and go
+directly to Step 4 — do **not** ask the user for approval. If ASK,
 call `exit_plan_mode` and wait for explicit user approval before coding.
 
 ## Step 4 — Execute (code + tests together)
