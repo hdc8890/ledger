@@ -24,10 +24,13 @@ export default defineConfig({
         // Thin singletons / framework glue with no logic of our own.
         'src/lib/db.ts',
         'src/lib/inngest.ts',
+        'src/inngest/index.ts',
         'src/middleware.ts',
         // Generated / config-style.
         'src/db/schema.ts',
         'src/db/migrations/**',
+        // shadcn/ui primitives — generated, not authored; extend via composition.
+        'src/components/ui/**',
       ],
       thresholds: {
         lines: 70,

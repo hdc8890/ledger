@@ -11,8 +11,32 @@ vi.mock('recharts', () => ({
     </div>
   ),
   Bar: ({ dataKey }: { dataKey: string }) => <div data-testid={`bar-${dataKey}`} />,
-  XAxis: ({ dataKey }: { dataKey: string }) => <div data-testid={`xaxis-${dataKey}`} />,
-  YAxis: () => <div data-testid="yaxis" />,
+  // Invoke tickFormatter to exercise the formatMonthLabel and formatAxis branches.
+  XAxis: ({
+    dataKey,
+    tickFormatter,
+  }: {
+    dataKey: string;
+    tickFormatter?: (v: string) => string;
+  }) => (
+    <div
+      data-testid={`xaxis-${dataKey}`}
+      data-formatted={tickFormatter?.('2025-01') ?? ''}
+      data-bad={tickFormatter?.('bad') ?? ''}
+    />
+  ),
+  YAxis: ({
+    tickFormatter,
+  }: {
+    tickFormatter?: (v: number) => string;
+  }) => (
+    <div
+      data-testid="yaxis"
+      data-sm={tickFormatter?.(500) ?? ''}
+      data-k={tickFormatter?.(15000) ?? ''}
+      data-m={tickFormatter?.(2000000) ?? ''}
+    />
+  ),
   CartesianGrid: () => null,
   Legend: () => <div data-testid="legend" />,
   Tooltip: () => null,
@@ -22,8 +46,21 @@ vi.mock('@/components/ui/chart', () => ({
   ChartContainer: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="chart-container">{children}</div>
   ),
-  ChartTooltip: () => null,
-  ChartTooltipContent: () => null,
+  // Render content so ChartTooltipContent is mounted and its formatters called.
+  ChartTooltip: ({ content }: { content?: React.ReactNode }) => <>{content ?? null}</>,
+  // Call formatter and labelFormatter so those branches are exercised.
+  ChartTooltipContent: ({
+    formatter,
+    labelFormatter,
+  }: {
+    formatter?: (v: unknown) => unknown;
+    labelFormatter?: (v: unknown) => unknown;
+  }) => {
+    formatter?.(12345);
+    labelFormatter?.('2025-01');
+    labelFormatter?.(42); // non-string label branch
+    return null;
+  },
 }));
 
 vi.mock('@/components/ui/card', () => ({

@@ -1,6 +1,49 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import type React from 'react';
 import { buildPayoffSeries } from '../payoff-chart';
 import type { LiabilityPayoffInput } from '../payoff-chart';
+
+// Recharts stub — minimal render to verify the chart receives correct data.
+vi.mock('recharts', () => ({
+  LineChart: ({ children, data }: { children: React.ReactNode; data: unknown[] }) => (
+    <div data-testid="line-chart" data-points={data.length}>
+      {children}
+    </div>
+  ),
+  Line: ({ dataKey }: { dataKey: string }) => <div data-testid={`line-${dataKey}`} />,
+  // Call tickFormatter to exercise the XAxis year-label branch.
+  XAxis: ({
+    tickFormatter,
+  }: {
+    tickFormatter?: (v: number) => string;
+  }) => (
+    <div
+      data-testid="xaxis"
+      data-yr0={tickFormatter?.(0) ?? ''}
+      data-yr12={tickFormatter?.(12) ?? ''}
+      data-yr1={tickFormatter?.(1) ?? ''}
+    />
+  ),
+  YAxis: () => <div data-testid="yaxis" />,
+  CartesianGrid: () => null,
+  // Call formatter and labelFormatter to cover those inline branches.
+  Tooltip: ({
+    formatter,
+    labelFormatter,
+  }: {
+    formatter?: (v: unknown) => unknown;
+    labelFormatter?: (v: unknown) => unknown;
+  }) => {
+    formatter?.(12345);
+    labelFormatter?.(6);
+    return null;
+  },
+  Legend: () => <div data-testid="legend" />,
+  ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="responsive-container">{children}</div>
+  ),
+}));
 
 const base: LiabilityPayoffInput = {
   id: 'l1',
@@ -73,5 +116,49 @@ describe('buildPayoffSeries', () => {
     const series = buildPayoffSeries(longLoan, 24);
     // Should not exceed maxMonths + 2 points
     expect(series.length).toBeLessThanOrEqual(26);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PayoffChart render tests
+// ---------------------------------------------------------------------------
+
+import { PayoffChart } from '../payoff-chart';
+
+describe('PayoffChart', () => {
+  it('renders nothing when all liabilities have zero balance', () => {
+    const { container } = render(
+      <PayoffChart liabilities={[{ ...base, balanceCents: 0n }]} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders the line chart for a liability with a positive balance', () => {
+    render(<PayoffChart liabilities={[base]} />);
+    expect(screen.getByTestId('line-chart')).toBeInTheDocument();
+    expect(screen.getByTestId('line-Mortgage')).toBeInTheDocument();
+  });
+
+  it('renders the "Projected Payoff" heading', () => {
+    render(<PayoffChart liabilities={[base]} />);
+    expect(screen.getByText(/projected payoff/i)).toBeInTheDocument();
+  });
+
+  it('omits the legend when only one liability is shown', () => {
+    render(<PayoffChart liabilities={[base]} />);
+    expect(screen.queryByTestId('legend')).not.toBeInTheDocument();
+  });
+
+  it('renders the legend when multiple liabilities are shown', () => {
+    const second: LiabilityPayoffInput = {
+      ...base,
+      id: 'l2',
+      name: 'Car Loan',
+      balanceCents: 2000000n,
+      apr: 0.05,
+      termMonths: 60,
+    };
+    render(<PayoffChart liabilities={[base, second]} />);
+    expect(screen.getByTestId('legend')).toBeInTheDocument();
   });
 });
