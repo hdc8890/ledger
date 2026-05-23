@@ -342,17 +342,20 @@ commits:
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
 
-### Pull requests
-- Title follows the same Conventional Commit form as the
-  primary commit.
-- Description includes: **what**, **why**, **how to test**,
-  **screenshots** if UI, **schema changes** if any, **roadmap
-  phase** if applicable.
-- Link the relevant issue or phase. If there is no issue, the
-  PR description must justify the change on its own.
-- CI must pass before merge: lint, typecheck, tests, build.
-- Self-review the diff before requesting review. Fix any
-  obvious issue first.
+### Single-contributor workflow — no PRs
+This is a single-contributor repository. **Do not open pull
+requests.** The workflow is:
+
+1. Create a local branch (or worktree) for implementation work.
+2. Commit in logical groups on that branch (per the commit
+   format rules above).
+3. Run lint, typecheck, and tests locally until clean.
+4. Merge the branch into `main` locally once the work is
+   approved (e.g. `git merge --no-ff`).
+5. Push `main` to origin.
+
+Branches exist only as a local scratch space during development.
+They are not intended to be long-lived or reviewed on GitHub.
 
 ### What never goes in a commit
 - Secrets, tokens, real Plaid credentials, real financial data.
