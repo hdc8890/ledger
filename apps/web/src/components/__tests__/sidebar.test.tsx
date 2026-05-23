@@ -34,10 +34,11 @@ vi.mock('@clerk/nextjs', () => ({
 import { Sidebar } from '../sidebar';
 
 describe('Sidebar', () => {
-  it('renders all five nav items', () => {
+  it('renders all six nav items', () => {
     mockPathname.value = '/dashboard';
     render(<Sidebar />);
-    expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /net worth/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /cash flow/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /chat/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /accounts/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /assets/i })).toBeInTheDocument();
@@ -47,7 +48,7 @@ describe('Sidebar', () => {
   it('marks the current route with aria-current="page"', () => {
     mockPathname.value = '/dashboard';
     render(<Sidebar />);
-    expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /net worth/i })).toHaveAttribute(
       'aria-current',
       'page',
     );
@@ -58,13 +59,13 @@ describe('Sidebar', () => {
     mockPathname.value = '/chat/session-abc';
     render(<Sidebar />);
     expect(screen.getByRole('link', { name: /chat/i })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: /dashboard/i })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: /net worth/i })).not.toHaveAttribute('aria-current');
   });
 
   it('does not mark unrelated routes as active', () => {
     mockPathname.value = '/settings';
     render(<Sidebar />);
-    expect(screen.getByRole('link', { name: /dashboard/i })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: /net worth/i })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: /chat/i })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: /settings/i })).toHaveAttribute(
       'aria-current',

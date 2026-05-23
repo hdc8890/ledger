@@ -29,10 +29,11 @@ vi.mock('next/link', () => ({
 import { BottomNav } from '../bottom-nav';
 
 describe('BottomNav', () => {
-  it('renders all five nav items', () => {
+  it('renders all six nav items', () => {
     mockPathname.value = '/accounts';
     render(<BottomNav />);
-    expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /net worth/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /cash flow/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /chat/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /accounts/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /assets/i })).toBeInTheDocument();
@@ -46,7 +47,7 @@ describe('BottomNav', () => {
       'aria-current',
       'page',
     );
-    expect(screen.getByRole('link', { name: /dashboard/i })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: /net worth/i })).not.toHaveAttribute('aria-current');
   });
 
   it('marks a nested route as active', () => {
