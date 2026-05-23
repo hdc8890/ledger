@@ -9,7 +9,7 @@ Updated at the start/end of each phase or significant milestone.
 
 **Stage:** Active development — Phase 1 in progress  
 **Active Phase:** Phase 1 — Foundation  
-**Next Milestone:** Phase 1, Task 4 — Plaid Link flow
+**Next Milestone:** Phase 1, Task 5 — Plaid webhook handler
 
 ---
 
@@ -17,7 +17,7 @@ Updated at the start/end of each phase or significant milestone.
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| 1 | Foundation | 🔄 In progress | Tasks 1–3 ✅ — Task 4 (Plaid Link) next |
+| 1 | Foundation | 🔄 In progress | Tasks 1–4 ✅ — Task 5 (webhook handler) next |
 | 2 | Dashboard MVP | 🔲 Not started | Awaits Phase 1 |
 | 3 | AI Chat MVP | 🔲 Not started | Awaits Phase 1 |
 | 4 | AI Enrichment | 🔲 Not started | Awaits Phase 3 |
