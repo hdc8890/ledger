@@ -15,6 +15,13 @@
       "when": 1779510153387,
       "tag": "0001_fantastic_nicolaos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779543104747,
+      "tag": "0002_sweet_magik",
+      "breakpoints": true
     }
   ]
 }

@@ -48,6 +48,22 @@ export async function updatePlaidItemCursor(
 }
 
 /**
+ * Fetch a single Plaid item by the external Plaid item ID (the `item_id`
+ * returned by Plaid's API and delivered in webhook payloads).
+ * Returns undefined if not found.
+ */
+export async function getPlaidItemByPlaidItemId(
+  plaidItemId: string,
+): Promise<PlaidItemRow | undefined> {
+  const rows = await db
+    .select()
+    .from(plaidItems)
+    .where(eq(plaidItems.plaidItemId, plaidItemId))
+    .limit(1);
+  return rows[0];
+}
+
+/**
  * Update the status of a Plaid item (e.g. to 'disconnected' or 'error').
  */
 export async function updatePlaidItemStatus(

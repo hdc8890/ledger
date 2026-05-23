@@ -62,6 +62,7 @@ const mockItem = {
   id: 'item-uuid',
   userId: 'user-uuid',
   accessTokenEnc: 'enc-token',
+  plaidItemId: 'plaid-item-abc',
   institutionId: 'ins_1',
   institutionName: 'Test Bank',
   status: 'active',
@@ -124,7 +125,7 @@ describe('POST /api/plaid/exchange', () => {
   it('happy path: returns itemId and accounts, writes audit event', async () => {
     mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
     mockFindUser.mockResolvedValue(mockUser);
-    mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-xyz' } });
+    mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-xyz', item_id: 'plaid-item-abc' } });
     mockEncrypt.mockResolvedValue('encrypted-token');
     mockInsertItem.mockResolvedValue(mockItem);
     mockAccountsGet.mockResolvedValue({ data: { accounts: [mockPlaidAccount] } });
@@ -154,16 +155,16 @@ describe('POST /api/plaid/exchange', () => {
     // encryptSecret called with raw token.
     expect(mockEncrypt).toHaveBeenCalledWith('access-sandbox-xyz');
 
-    // Encrypted value (not raw token) stored.
+    // Encrypted value (not raw token) stored, including the plaidItemId.
     expect(mockInsertItem).toHaveBeenCalledWith(
-      expect.objectContaining({ accessTokenEnc: 'encrypted-token' }),
+      expect.objectContaining({ accessTokenEnc: 'encrypted-token', plaidItemId: 'plaid-item-abc' }),
     );
   });
 
   it('returns 500 when accountsGet fails after successful exchange (access token must not leak)', async () => {
     mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
     mockFindUser.mockResolvedValue(mockUser);
-    mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-secret' } });
+    mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-secret', item_id: 'plaid-item-abc' } });
     mockEncrypt.mockResolvedValue('encrypted-token');
     mockInsertItem.mockResolvedValue(mockItem);
     mockAccountsGet.mockRejectedValue(new Error('Plaid accountsGet failed'));
@@ -178,7 +179,7 @@ describe('POST /api/plaid/exchange', () => {
   it('returns 500 when insertAuditEvent fails (access token must not leak)', async () => {
     mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
     mockFindUser.mockResolvedValue(mockUser);
-    mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-secret' } });
+    mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-secret', item_id: 'plaid-item-abc' } });
     mockEncrypt.mockResolvedValue('encrypted-token');
     mockInsertItem.mockResolvedValue(mockItem);
     mockAccountsGet.mockResolvedValue({ data: { accounts: [mockPlaidAccount] } });
