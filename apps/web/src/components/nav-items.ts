@@ -1,5 +1,6 @@
 import {
   Building2,
+  CreditCard,
   LayoutDashboard,
   Landmark,
   MessageSquare,
@@ -17,6 +18,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/dashboard', label: 'Net Worth', icon: LayoutDashboard },
   { href: '/cash-flow', label: 'Cash Flow', icon: TrendingUp },
+  { href: '/debt', label: 'Debt', icon: CreditCard },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/accounts', label: 'Accounts', icon: Building2 },
   { href: '/assets', label: 'Assets', icon: Landmark },
