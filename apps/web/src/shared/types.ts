@@ -15,6 +15,9 @@ export type PlaidItemId = Brand<string, 'PlaidItemId'>;
 export type AccountId = Brand<string, 'AccountId'>;
 export type TransactionId = Brand<string, 'TransactionId'>;
 export type AuditEventId = Brand<string, 'AuditEventId'>;
+export type AssetId = Brand<string, 'AssetId'>;
+export type LiabilityId = Brand<string, 'LiabilityId'>;
+export type NetWorthSnapshotId = Brand<string, 'NetWorthSnapshotId'>;
 
 /** Cast a raw string to a branded type. Use at trust boundaries (DB reads, API input). */
 export function brand<T extends Brand<string, string>>(value: string): T {

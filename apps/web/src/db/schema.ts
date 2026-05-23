@@ -9,8 +9,12 @@ import {
   bigint,
   boolean,
   real,
+  integer,
+  unique,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -40,6 +44,31 @@ export const auditSourceEnum = pgEnum('audit_source', [
   'ai',
   'system',
   'rule',
+]);
+
+export const assetKindEnum = pgEnum('asset_kind', [
+  'home',
+  'vehicle',
+  'brokerage',
+  'cash',
+  'crypto',
+  'manual',
+]);
+
+export const assetSourceEnum = pgEnum('asset_source', [
+  'plaid',
+  'api',
+  'user',
+  'ai',
+]);
+
+export const liabilityKindEnum = pgEnum('liability_kind', [
+  'mortgage',
+  'auto',
+  'personal',
+  'student',
+  'credit_card',
+  'other',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -161,6 +190,8 @@ export const transactions = pgTable(
     source: transactionSourceEnum('source').notNull().default('plaid'),
     /** Overall data confidence: 1.0 for Plaid, lower for inferred data. */
     confidence: real('confidence').notNull().default(1.0),
+    /** True when this transaction is identified as an internal transfer (heuristic; Phase 4 enrichment fills this in). */
+    isTransfer: boolean('is_transfer').notNull().default(false),
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -195,4 +226,106 @@ export const auditEvents = pgTable(
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('audit_events_entity_id_idx').on(t.entityId)],
+);
+
+// ---------------------------------------------------------------------------
+// assets
+// User-owned assets: home, vehicles, brokerage accounts, cash, crypto,
+// and any manually-entered asset. value_cents is the most-recent known
+// value. source + confidence track data provenance per AGENTS.md.
+// manual_override = true when the user has explicitly set the value,
+// preventing automated refreshes from overwriting it.
+// ---------------------------------------------------------------------------
+export const assets = pgTable(
+  'assets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: assetKindEnum('kind').notNull(),
+    name: text('name').notNull(),
+    /** Current estimated value in cents. */
+    valueCents: bigint('value_cents', { mode: 'bigint' }).notNull(),
+    source: assetSourceEnum('source').notNull().default('user'),
+    /** 0–1 confidence score for the value estimate. 1.0 for user-entered, lower for API/AI estimates. */
+    confidence: real('confidence').notNull().default(1.0),
+    /** True when the user has explicitly overridden the value; blocks automated refreshes. */
+    manualOverride: boolean('manual_override').notNull().default(false),
+    /** Kind-specific metadata: { vin, mileage, address, zestimate_url, … } */
+    metadata: jsonb('metadata').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('assets_user_id_idx').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// liabilities
+// Debts: mortgages, auto loans, personal loans, student loans, credit cards,
+// and other obligations. Optionally linked to a Plaid account for live
+// balance sync. account_id SET NULL on account delete so the record is
+// preserved even if the Plaid item is disconnected.
+// ---------------------------------------------------------------------------
+export const liabilities = pgTable(
+  'liabilities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Linked Plaid account, if the liability is synced via Plaid. Null for manual entries. A partial unique index ensures at most one liability per non-null account_id. */
+    accountId: uuid('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+    kind: liabilityKindEnum('kind').notNull(),
+    name: text('name').notNull(),
+    /** Outstanding balance in cents. */
+    balanceCents: bigint('balance_cents', { mode: 'bigint' }).notNull(),
+    /** Annual percentage rate (0–1 range). Null if unknown. */
+    apr: real('apr'),
+    /** Original loan term in months. Null if unknown or revolving. */
+    termMonths: integer('term_months'),
+    /** Original principal in cents. Null if unknown. */
+    originalPrincipalCents: bigint('original_principal_cents', { mode: 'bigint' }),
+    /** Liability-specific metadata: { lender, account_mask, … } */
+    metadata: jsonb('metadata').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('liabilities_user_id_idx').on(t.userId),
+    // Partial unique index: at most one liability per Plaid account (nulls are distinct and excluded).
+    uniqueIndex('liabilities_account_id_uniq').on(t.accountId).where(sql`${t.accountId} IS NOT NULL`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// net_worth_snapshots
+// Daily point-in-time net worth (assets − liabilities). Populated nightly
+// by an Inngest job; the job backfills gaps > 1 day. Used for sparklines
+// and trend charts on the Net Worth dashboard. UNIQUE(user_id, date) so
+// the job can upsert safely.
+// breakdown stores per-kind totals so the allocation donut can render
+// from the snapshot without re-querying all assets.
+// ---------------------------------------------------------------------------
+export const netWorthSnapshots = pgTable(
+  'net_worth_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** UTC calendar date for this snapshot (one row per user per day). */
+    snapshotDate: date('snapshot_date').notNull(),
+    /** Sum of all asset values in cents at snapshot time. */
+    assetsCents: bigint('assets_cents', { mode: 'bigint' }).notNull(),
+    /** Sum of all liability balances in cents at snapshot time. */
+    liabilitiesCents: bigint('liabilities_cents', { mode: 'bigint' }).notNull(),
+    /** Per-kind asset totals: { home: 45000000n, brokerage: 12000000n, … } stored as strings to survive JSON round-trip. */
+    breakdown: jsonb('breakdown').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('net_worth_snapshots_user_date_uniq').on(t.userId, t.snapshotDate),
+    index('net_worth_snapshots_user_date_idx').on(t.userId, t.snapshotDate),
+  ],
 );

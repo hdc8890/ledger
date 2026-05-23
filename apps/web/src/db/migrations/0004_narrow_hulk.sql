@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "liabilities_account_id_uniq" ON "liabilities" USING btree ("account_id") WHERE "liabilities"."account_id" IS NOT NULL;

@@ -22,6 +22,20 @@
       "when": 1779543104747,
       "tag": "0002_sweet_magik",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779566848434,
+      "tag": "0003_phase2_assets_liabilities_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779567663305,
+      "tag": "0004_narrow_hulk",
+      "breakpoints": true
     }
   ]
 }
