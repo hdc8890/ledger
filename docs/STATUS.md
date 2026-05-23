@@ -7,9 +7,9 @@ Updated at the start/end of each phase or significant milestone.
 
 ## Current State
 
-**Stage:** Active development — Phase 1 in progress  
-**Active Phase:** Phase 1 — Foundation  
-**Next Milestone:** Phase 1 complete — all 6 tasks done ✅
+**Stage:** Active development — Phase 2 in progress  
+**Active Phase:** Phase 2 — Dashboard MVP  
+**Next Milestone:** Phase 2 complete — all 7 tasks done ✅
 
 ---
 
@@ -18,7 +18,7 @@ Updated at the start/end of each phase or significant milestone.
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
 | 1 | Foundation | ✅ Done | All 6 tasks complete |
-| 2 | Dashboard MVP | 🔲 Not started | Awaits Phase 1 |
+| 2 | Dashboard MVP | 🔄 In progress | Task 1 (app shell + nav) ✅ |
 | 3 | AI Chat MVP | 🔲 Not started | Awaits Phase 1 |
 | 4 | AI Enrichment | 🔲 Not started | Awaits Phase 3 |
 | 5 | Memory Layer | 🔲 Not started | Awaits Phase 3 |
