@@ -7,9 +7,9 @@ Updated at the start/end of each phase or significant milestone.
 
 ## Current State
 
-**Stage:** Pre-development — planning complete, scaffolding not yet started  
-**Active Phase:** None  
-**Next Milestone:** Phase 1 scaffold (repo, auth, DB, Plaid ingestion)
+**Stage:** Active development — Phase 1 in progress  
+**Active Phase:** Phase 1 — Foundation  
+**Next Milestone:** Phase 1, Task 2 — Auth (Clerk sign-in/sign-up routes, users row on first sign-in)
 
 ---
 
@@ -17,7 +17,7 @@ Updated at the start/end of each phase or significant milestone.
 
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
-| 1 | Foundation | 🔲 Not started | Plaid, Postgres, sync jobs, auth |
+| 1 | Foundation | 🔄 In progress | Task 1 (scaffold) ✅ — Task 2 (auth) next |
 | 2 | Dashboard MVP | 🔲 Not started | Awaits Phase 1 |
 | 3 | AI Chat MVP | 🔲 Not started | Awaits Phase 1 |
 | 4 | AI Enrichment | 🔲 Not started | Awaits Phase 3 |
@@ -32,6 +32,7 @@ Status legend: 🔲 Not started · 🔄 In progress · ✅ Done · 🚧 Blocked
 
 These are set. Don't revisit without a strong reason.
 
+- **Monorepo vs single Next.js app**: Single Next.js app to start; extract pnpm workspace at Phase 4 friction
 - **Stack**: Next.js 15 + TypeScript + Tailwind + Drizzle + Neon + Clerk + Inngest + Vercel AI SDK
 - **Primary AI model**: Claude Sonnet (reasoning/tools), `gpt-4o-mini` (enrichment), `text-embedding-3-small` (embeddings)
 - **Money representation**: `bigint` cents — never float
@@ -47,8 +48,7 @@ Things not yet settled, to be resolved before or during the relevant phase.
 
 | Decision | Needed By | Notes |
 |----------|-----------|-------|
-| Monorepo vs single Next.js app | Phase 1 start | Single app to start; extract packages when painful (Phase 4 likely) |
-| Auth.js vs Clerk | Phase 1 start | Clerk preferred for speed; Auth.js if vendor concern outweighs DX |
+| Auth.js vs Clerk | Phase 1 Task 2 | Clerk preferred for speed; Auth.js if vendor concern outweighs DX |
 | Plaid Sandbox → Production timing | Phase 1 | Apply for Production access early (days of lead time) |
 | Category taxonomy (leaf count) | Phase 4 | Start with Plaid PFC, simplify to ~25 leaves |
 
