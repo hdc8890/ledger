@@ -26,8 +26,9 @@ can continue.
    ```
 
 4. **Recommend an action** immediately after the block:
-   - **PROCEED** — score ≥ 7; the calling skill should continue to the
-     next step automatically.
+   - **PROCEED** — score ≥ 7; the calling skill **must** continue to the
+     next step immediately. **Do NOT call `ask_user`, `exit_plan_mode`,
+     or any other user-facing prompt. No human interaction. Auto-continue.**
    - **ASK** — score < 7; provide a single focused question that the
      calling skill should pass to `ask_user` before continuing.
 
@@ -63,6 +64,13 @@ Always emit exactly:
 
 PROCEED   ← or →   ASK: "<single focused question for ask_user>"
 ```
+
+**Contract for the calling skill:**
+- **PROCEED**: move to the next step immediately for this gate. Do **not**
+  call `ask_user`, `exit_plan_mode`, or any user-facing prompt for this
+  gate. Auto-continue to the next step.
+- **ASK**: call `ask_user` with exactly the question provided, then wait
+  for the user's response before continuing.
 
 Nothing else. The calling skill resumes immediately after reading
 your output.
