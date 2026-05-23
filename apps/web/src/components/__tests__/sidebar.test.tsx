@@ -34,11 +34,12 @@ vi.mock('@clerk/nextjs', () => ({
 import { Sidebar } from '../sidebar';
 
 describe('Sidebar', () => {
-  it('renders all six nav items', () => {
+  it('renders all seven nav items', () => {
     mockPathname.value = '/dashboard';
     render(<Sidebar />);
     expect(screen.getByRole('link', { name: /net worth/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /cash flow/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /debt/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /chat/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /accounts/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /assets/i })).toBeInTheDocument();

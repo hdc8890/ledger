@@ -29,11 +29,12 @@ vi.mock('next/link', () => ({
 import { BottomNav } from '../bottom-nav';
 
 describe('BottomNav', () => {
-  it('renders all six nav items', () => {
+  it('renders all seven nav items', () => {
     mockPathname.value = '/accounts';
     render(<BottomNav />);
     expect(screen.getByRole('link', { name: /net worth/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /cash flow/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /debt/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /chat/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /accounts/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /assets/i })).toBeInTheDocument();
