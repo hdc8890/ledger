@@ -244,18 +244,52 @@ Tool naming: snake_case, verb-first, scoped (`get_*`,
 
 ## 5. Testing
 
-- **Vitest** for unit + integration. **Playwright** for e2e of
-  critical user flows (Plaid Link, chat approve-write,
-  dashboard render).
+### Tooling
+- **Vitest** for unit + integration. Run via:
+  - `pnpm test` — single run (CI mode)
+  - `pnpm test:watch` — watch mode while developing
+  - `pnpm test:coverage` — v8 coverage report to `apps/web/coverage/`
+- **@testing-library/react** + `jsdom` for component tests.
+  Use `act`, `render`, `screen`, `fireEvent`, `waitFor`. Always
+  assert on accessible roles/text, not implementation details.
+- **Coverage** is enforced at 70% lines / functions / branches /
+  statements via `apps/web/vitest.config.ts`. Don't lower the
+  threshold to make a PR pass — add tests instead.
+- **Playwright** for e2e of critical user flows (Plaid Link, chat
+  approve-write, dashboard render) — to be set up at the end of
+  Phase 1. Not yet installed.
+
+### Layout & naming
+- Tests live in `__tests__/` directories beside the code they
+  cover, named `<unit>.test.ts` (or `.test.tsx` for React).
+- `vitest.setup.ts` wires `@testing-library/jest-dom` matchers
+  globally; the `globals: true` Vitest option means `describe`,
+  `it`, `expect`, `vi` are available without imports — but
+  prefer explicit imports for clarity.
+
+### Practices
 - Test the **repository layer** against a real ephemeral
   Postgres (Testcontainers or a per-test schema on Neon
-  branching). Mocked DBs lie.
-- Mock only at process boundaries (Plaid, LLM providers).
-  Mocking your own code is a smell.
+  branching) once that infrastructure exists. Until then, the
+  current pattern is a typed Drizzle/`db` mock via `vi.hoisted`
+  + `vi.mock` — keep it; do not deepen the mock surface beyond
+  what the test needs.
+- Mock only at process boundaries (Plaid, LLM providers, Clerk,
+  the network). Mocking your own pure code is a smell.
+- Server-action / route-handler tests mock `auth()` from Clerk
+  and the relevant `@/db/queries/*` module, then exercise the
+  exported `POST` / `GET` directly with a constructed `Request`.
+- Component tests mock external React hooks (`usePlaidLink`,
+  Clerk hooks) at the module level; never reach into the DOM
+  via class names.
 - Snapshot tests only for stable, semantic output (e.g. tool
   result shapes). Never snapshot rendered HTML for dashboards.
 - Add a test for every bug fix that demonstrates the bug before
   the fix.
+- Files excluded from coverage (configured in `vitest.config.ts`):
+  Next.js `layout.tsx`/`page.tsx`, thin singletons (`lib/db.ts`,
+  `lib/inngest.ts`), `middleware.ts`, Drizzle schema, and
+  migrations. Don't add new exclusions without justification.
 
 ---
 
@@ -375,6 +409,8 @@ A change is done when:
 1. Types compile under strict mode.
 2. Lint passes with zero warnings (warnings are errors).
 3. New code has tests; bug fixes have regression tests.
+   `pnpm test` is green and `pnpm test:coverage` stays above the
+   configured 70% threshold.
 4. Manual override path verified for any AI-written field.
 5. `audit_events` row produced for any mutation outside
    ordinary user data entry.
