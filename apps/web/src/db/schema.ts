@@ -75,6 +75,8 @@ export const plaidItems = pgTable(
     institutionId: text('institution_id').notNull(),
     institutionName: text('institution_name').notNull(),
     status: plaidItemStatusEnum('status').notNull().default('active'),
+    /** Plaid's external item ID (returned by itemPublicTokenExchange). Used to look up rows from webhook payloads. */
+    plaidItemId: text('plaid_item_id').notNull().unique(),
     /** Cursor for /transactions/sync — null before first sync. */
     cursor: text('cursor'),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),

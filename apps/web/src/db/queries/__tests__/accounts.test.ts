@@ -7,7 +7,6 @@ const {
   mockInsert,
   mockUpdate,
   mockSet,
-  mockWhere,
 } = vi.hoisted(() => {
   const mockReturning = vi.fn();
   const mockOnConflictDoUpdate = vi.fn(() => ({ returning: mockReturning }));
@@ -23,7 +22,6 @@ const {
     mockInsert,
     mockUpdate,
     mockSet,
-    mockWhere,
   };
 });
 

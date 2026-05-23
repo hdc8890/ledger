@@ -66,6 +66,7 @@ export async function POST(request: Request): Promise<Response> {
       public_token: publicToken,
     });
     const accessToken = exchangeRes.data.access_token;
+    const plaidItemId = exchangeRes.data.item_id;
 
     // Encrypt before storing — the raw token is never persisted or forwarded.
     const accessTokenEnc = await encryptSecret(accessToken);
@@ -74,6 +75,7 @@ export async function POST(request: Request): Promise<Response> {
       // Cast: Drizzle infers uuid as string; branded type is applied at the trust boundary.
       userId: user.id as UserId,
       accessTokenEnc,
+      plaidItemId,
       institutionId,
       institutionName,
       status: 'active',
