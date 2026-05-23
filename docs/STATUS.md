@@ -18,7 +18,7 @@ Updated at the start/end of each phase or significant milestone.
 | Phase | Name | Status | Notes |
 |-------|------|--------|-------|
 | 1 | Foundation | ✅ Done | All 6 tasks complete |
-| 2 | Dashboard MVP | 🔄 In progress | Task 1 (app shell + nav) ✅ · Task 2 (schema + query layer) ✅ |
+| 2 | Dashboard MVP | 🔄 In progress | Task 1 (app shell + nav) ✅ · Task 2 (schema + query layer) ✅ · Task 3 (net worth dashboard) ✅ |
 | 3 | AI Chat MVP | 🔲 Not started | Awaits Phase 1 |
 | 4 | AI Enrichment | 🔲 Not started | Awaits Phase 3 |
 | 5 | Memory Layer | 🔲 Not started | Awaits Phase 3 |

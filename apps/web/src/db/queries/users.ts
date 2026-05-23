@@ -50,6 +50,14 @@ export async function upsertUserByClerkId(input: {
 }
 
 /**
+ * Fetch all user rows. Used by background cron jobs that must process
+ * every registered user (e.g. nightly net-worth snapshot).
+ */
+export async function getAllUsers(): Promise<UserRow[]> {
+  return db.select().from(users);
+}
+
+/**
  * Find a user by internal UUID. Throws if not found.
  */
 export async function getUserById(id: UserId): Promise<UserRow> {
