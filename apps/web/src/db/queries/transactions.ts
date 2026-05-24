@@ -83,9 +83,22 @@ export async function getTransactionById(id: TransactionId): Promise<Transaction
   return rows[0];
 }
 
-// ---------------------------------------------------------------------------
-// Filtered / aggregate queries — used by AI tools (Phase 3 Task 2)
-// ---------------------------------------------------------------------------
+/**
+ * Update the category and category source for a transaction.
+ * Used when a 'txn_tag' pending change is approved (Phase 3 Task 4).
+ */
+export async function updateTransactionCategory(
+  id: TransactionId,
+  category: string,
+  source: TransactionRow['categorySource'],
+): Promise<TransactionRow | undefined> {
+  const rows = await db
+    .update(transactions)
+    .set({ category, categorySource: source, categoryConfidence: 1.0, updatedAt: new Date() })
+    .where(eq(transactions.id, id))
+    .returning();
+  return rows[0];
+}
 
 export type TransactionFilter = {
   readonly startDate?: string; // YYYY-MM-DD inclusive
