@@ -13,7 +13,9 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
-      "no-console": "error",
+      // Allow console.error / console.warn for error-boundary logging.
+      // console.log is banned to prevent debug noise in committed code.
+      "no-console": ["error", { allow: ["error", "warn"] }],
     },
   },
   {
