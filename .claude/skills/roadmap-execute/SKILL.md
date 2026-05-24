@@ -17,18 +17,29 @@ Authority and doc rules come from `AGENTS.md`. Re-read its "Doc Map" and
 
 At each step marked **[GATE]** below, invoke the `confidence-score`
 skill by calling `skill("confidence-score")` and passing it the gate
-question as context. The skill will return a `[Confidence: N/10]` block
-and either **PROCEED** or **ASK**.
+question as context. The skill will return a `[Confidence: N/10]`
+block followed by a single `DECISION:` line.
 
-- If the skill returns **PROCEED**: skip the user interaction for this
-  gate and continue to the next step immediately — do **not** call
-  `ask_user`, `exit_plan_mode`, or any user-facing prompt **for this
-  gate**. Auto-continue.
-- If the skill returns **ASK**: use `ask_user` with the single focused
-  question the skill provides before continuing.
+**Parse the `DECISION:` line strictly. It is binding.**
 
-Do not run confidence scoring inline — always delegate to the skill so
-it runs in a clean context window.
+- `DECISION: PROCEED` → your **very next action must be the next
+  workflow step**. You are **forbidden** to:
+  - call `ask_user` for this gate,
+  - call `exit_plan_mode` for this gate (even at the plan-approval
+    gate — PROCEED *replaces* user approval),
+  - emit a text-only turn asking the user to confirm, approve, or
+    acknowledge,
+  - re-derive the decision inline or second-guess the score.
+
+  If you feel an urge to confirm with the user after PROCEED, treat
+  it as a bug and suppress it. Auto-continue.
+
+- `DECISION: ASK — <question>` → call `ask_user` with exactly that
+  question (no rephrasing, no bundling) and wait for the response
+  before continuing.
+
+Do not run confidence scoring inline — always delegate to the skill
+so it runs in a clean context window.
 
 ---
 
@@ -50,8 +61,11 @@ Output to the user: a 2–4 line summary of "what" and "why this is
 next", and the phase + section it comes from.
 
 **[GATE — task selection]** Invoke `skill("confidence-score")` with the
-gate question: *"Have I identified the correct next task?"* Follow the
-skill's PROCEED / ASK recommendation.
+gate question: *"Have I identified the correct next task?"*
+- On `DECISION: PROCEED` → go straight to Step 2. No `ask_user`, no
+  confirmation turn.
+- On `DECISION: ASK — <question>` → call `ask_user` with that exact
+  question, then continue.
 
 ## Step 2 — Build context and clarify
 
@@ -69,9 +83,13 @@ For the chosen task:
   tradeoff for a new LLM call.
 
 **[GATE — blocking questions]** For each open question, invoke
-`skill("confidence-score")` with the question as context. Follow each
-PROCEED / ASK recommendation in turn. Do not invent answers to
-low-confidence questions.
+`skill("confidence-score")` with the question as context.
+- On `DECISION: PROCEED` → move on to the next question or to Step 3.
+  No `ask_user` for that question.
+- On `DECISION: ASK — <question>` → call `ask_user` with the exact
+  question before continuing.
+
+Do not invent answers to low-confidence questions.
 
 ## Step 3 — Create an execution plan
 
@@ -97,9 +115,17 @@ Then show a compact summary to the user.
 
 **[GATE — plan approval]** Invoke `skill("confidence-score")` with the
 gate question: *"Is this plan correct and complete enough to execute
-without user approval?"* If PROCEED, skip `exit_plan_mode` and go
-directly to Step 4 — do **not** ask the user for approval. If ASK,
-call `exit_plan_mode` and wait for explicit user approval before coding.
+without user approval?"*
+
+- On `DECISION: PROCEED` → go **directly** to Step 4 and start
+  implementing on your very next action. You are **forbidden** from
+  calling `exit_plan_mode` or `ask_user` here. PROCEED at this gate
+  *is* the approval — do not seek a second one from the user. This is
+  the gate where the auto-continue rule is most often violated; treat
+  any urge to call `exit_plan_mode` as a bug.
+- On `DECISION: ASK — <question>` → call `exit_plan_mode` with a
+  compact summary of the plan and wait for explicit user approval
+  before coding.
 
 ## Step 4 — Execute (code + tests together)
 

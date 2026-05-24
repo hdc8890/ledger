@@ -25,12 +25,25 @@ can continue.
    [Confidence: N/10 — <one-sentence rationale>]
    ```
 
-4. **Recommend an action** immediately after the block:
-   - **PROCEED** — score ≥ 7; the calling skill **must** continue to the
-     next step immediately. **Do NOT call `ask_user`, `exit_plan_mode`,
-     or any other user-facing prompt. No human interaction. Auto-continue.**
-   - **ASK** — score < 7; provide a single focused question that the
-     calling skill should pass to `ask_user` before continuing.
+4. **Emit a machine-parseable decision line** immediately after the
+   block. It must be exactly one of these two forms, on its own line,
+   with no surrounding prose, quotes, or punctuation:
+
+   ```
+   DECISION: PROCEED
+   ```
+   or
+   ```
+   DECISION: ASK — <single focused question for ask_user>
+   ```
+
+   - **PROCEED** — score ≥ 7. The calling skill **must** continue to
+     the next workflow step immediately on its very next action. It
+     **must not** call `ask_user`, `exit_plan_mode`, or emit any
+     text-only "should I proceed?" turn for this gate. No human
+     interaction. Auto-continue.
+   - **ASK** — score < 7. The calling skill must call `ask_user` with
+     exactly the question after the `—`, then wait for the response.
 
 Then return control to the calling skill.
 
@@ -62,15 +75,34 @@ Always emit exactly:
 ```
 [Confidence: N/10 — <rationale>]
 
-PROCEED   ← or →   ASK: "<single focused question for ask_user>"
+DECISION: PROCEED
 ```
 
-**Contract for the calling skill:**
-- **PROCEED**: move to the next step immediately for this gate. Do **not**
-  call `ask_user`, `exit_plan_mode`, or any user-facing prompt for this
-  gate. Auto-continue to the next step.
-- **ASK**: call `ask_user` with exactly the question provided, then wait
-  for the user's response before continuing.
+or
 
-Nothing else. The calling skill resumes immediately after reading
-your output.
+```
+[Confidence: N/10 — <rationale>]
+
+DECISION: ASK — <single focused question for ask_user>
+```
+
+**Binding contract for the calling skill (no exceptions):**
+
+- **On `DECISION: PROCEED`**, the calling skill's very next action
+  **must** be the next workflow step. It is **forbidden** to:
+  - call `ask_user` for this gate,
+  - call `exit_plan_mode` for this gate,
+  - emit a text-only turn asking the user to confirm, approve, or
+    acknowledge,
+  - re-evaluate the decision inline ("but maybe I should still ask…").
+
+  PROCEED is binding even if the gate is named "approval" or "plan
+  approval" — the score has already established sufficient confidence
+  to auto-continue. Treat any urge to confirm as a bug.
+
+- **On `DECISION: ASK — <question>`**, the calling skill must call
+  `ask_user` with exactly that question (no rephrasing, no bundling
+  with other questions) and wait for the response before continuing.
+
+Nothing else in the output. The calling skill resumes immediately
+after reading the `DECISION:` line.
