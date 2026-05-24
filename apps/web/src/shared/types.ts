@@ -22,6 +22,7 @@ export type ChatSessionId = Brand<string, 'ChatSessionId'>;
 export type ChatMessageId = Brand<string, 'ChatMessageId'>;
 export type PendingChangeId = Brand<string, 'PendingChangeId'>;
 export type LlmUsageId = Brand<string, 'LlmUsageId'>;
+export type CategorizationRuleId = Brand<string, 'CategorizationRuleId'>;
 
 /** Cast a raw string to a branded type. Use at trust boundaries (DB reads, API input). */
 export function brand<T extends Brand<string, string>>(value: string): T {
