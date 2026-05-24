@@ -1,6 +1,6 @@
 # Phase 3 — AI Chat MVP
 
-**Status:** 🔄 In progress — Task 1 complete  
+**Status:** 🔄 In progress — Tasks 1–5 complete (Task 6 next: Cost + token logging)  
 **Estimated duration:** 1–2 weeks  
 **Depends on:** Phase 1 complete (Phase 2 recommended)  
 **Goal:** A streaming chat interface where the AI can answer financial
@@ -68,11 +68,11 @@ Guardrails (hard-coded in prompt):
 - No tax, legal, or medical advice
 - Always cite the source when stating a number
 
-### 6. Conversation persistence
+### ✅ 6. Conversation persistence
 - `chat_sessions` and `chat_messages` tables
 - Load last N messages as context on each turn
 - Auto-generate session title from first user message (async,
-  background LLM call)
+  background LLM call using `claude-haiku-4-5`; ~$0.0001/session)
 
 ### 7. Cost + token logging
 `logLlmCall(model, inputTokens, outputTokens, latencyMs, toolCalls[])` helper.
