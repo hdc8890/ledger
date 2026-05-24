@@ -1,6 +1,6 @@
 # Phase 3 — AI Chat MVP
 
-**Status:** 🔲 Not started  
+**Status:** 🔄 In progress — Task 1 complete  
 **Estimated duration:** 1–2 weeks  
 **Depends on:** Phase 1 complete (Phase 2 recommended)  
 **Goal:** A streaming chat interface where the AI can answer financial
@@ -13,12 +13,14 @@ Deliverable: Chat-first financial interaction.
 
 ## Tasks
 
-### 1. Chat route + streaming UI
-- `/chat` page with `useChat` (Vercel AI SDK)
-- `POST /api/chat` route handler using `streamText`
+### ✅ 1. Chat route + streaming UI
+- `/chat` page with `useChat` (Vercel AI SDK v6, `@ai-sdk/react`)
+- `POST /api/chat` route handler using `streamText` (AI SDK v6)
 - Message bubbles with role-based styling
 - Streaming token rendering (no flash-of-content)
 - Conversation sidebar: list sessions, create new, delete
+- LLM usage logged to `llm_usage` table on every request
+- 49 test files, 293 tests, all green
 
 ### 2. Tool registry (`packages/ai/tools/`)
 One file per tool. Each exports: Zod input schema, handler function,

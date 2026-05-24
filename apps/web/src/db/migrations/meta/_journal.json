@@ -36,6 +36,13 @@
       "when": 1779567663305,
       "tag": "0004_narrow_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779627355052,
+      "tag": "0005_smiling_omega_red",
+      "breakpoints": true
     }
   ]
 }

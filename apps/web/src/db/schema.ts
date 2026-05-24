@@ -10,6 +10,7 @@ import {
   boolean,
   real,
   integer,
+  numeric,
   unique,
   index,
   uniqueIndex,
@@ -328,4 +329,114 @@ export const netWorthSnapshots = pgTable(
     unique('net_worth_snapshots_user_date_uniq').on(t.userId, t.snapshotDate),
     index('net_worth_snapshots_user_date_idx').on(t.userId, t.snapshotDate),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// Phase 3 — AI Chat tables
+// ---------------------------------------------------------------------------
+
+export const chatMessageRoleEnum = pgEnum('chat_message_role', [
+  'user',
+  'assistant',
+  'tool',
+]);
+
+export const pendingChangesStatusEnum = pgEnum('pending_changes_status', [
+  'pending',
+  'applied',
+  'rejected',
+]);
+
+// ---------------------------------------------------------------------------
+// chat_sessions
+// One row per conversation. title is populated asynchronously from the first
+// user message (Phase 3 Task 6). Cascades on user deletion.
+// ---------------------------------------------------------------------------
+export const chatSessions = pgTable(
+  'chat_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Auto-generated title from first user message. Null until generated. */
+    title: text('title'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('chat_sessions_user_id_idx').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// chat_messages
+// Individual turns in a conversation. content is the text payload for
+// user/assistant roles, or a tool-call/result descriptor for 'tool' role.
+// Cascades on session deletion.
+// ---------------------------------------------------------------------------
+export const chatMessages = pgTable(
+  'chat_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => chatSessions.id, { onDelete: 'cascade' }),
+    role: chatMessageRoleEnum('role').notNull(),
+    /** Text content or structured tool call/result payload. */
+    content: jsonb('content').notNull(),
+    /** Tool call objects when role='assistant' invokes a tool. */
+    toolCalls: jsonb('tool_calls'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('chat_messages_session_id_idx').on(t.sessionId)],
+);
+
+// ---------------------------------------------------------------------------
+// pending_changes
+// AI-proposed writes that require user approval before being committed.
+// kind identifies the domain object being changed (e.g. 'asset_update',
+// 'txn_tag', 'rule_create'). payload contains the full proposed diff.
+// Applied/rejected changes are never deleted — kept for audit history.
+// ---------------------------------------------------------------------------
+export const pendingChanges = pgTable(
+  'pending_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Domain discriminator: 'asset_update' | 'txn_tag' | 'rule_create' | … */
+    kind: text('kind').notNull(),
+    /** Full proposed change payload, validated by the consuming server action. */
+    payload: jsonb('payload').notNull(),
+    status: pendingChangesStatusEnum('status').notNull().default('pending'),
+    appliedAt: timestamp('applied_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('pending_changes_user_id_idx').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// llm_usage
+// Append-only log of every LLM call. Persisted by the logLlmCall helper
+// (Phase 3 Task 7). Used for cost monitoring in Settings. No updated_at
+// because rows are immutable.
+// ---------------------------------------------------------------------------
+export const llmUsage = pgTable(
+  'llm_usage',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    model: text('model').notNull(),
+    inputTokens: integer('input_tokens').notNull(),
+    outputTokens: integer('output_tokens').notNull(),
+    latencyMs: integer('latency_ms').notNull(),
+    /** Tool calls invoked during this LLM call, if any. */
+    toolCalls: jsonb('tool_calls'),
+    /** Estimated USD cost for this call (model-specific token pricing). */
+    estimatedCostUsd: numeric('estimated_cost_usd', { precision: 10, scale: 6 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('llm_usage_user_id_idx').on(t.userId)],
 );
