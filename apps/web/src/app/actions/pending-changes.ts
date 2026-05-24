@@ -1,0 +1,196 @@
+'use server';
+
+import { auth } from '@clerk/nextjs/server';
+import { revalidatePath } from 'next/cache';
+import { db } from '@/lib/db';
+import { findUserByClerkId } from '@/db/queries/users';
+import {
+  getPendingChangeById,
+  applyPendingChange,
+  rejectPendingChange,
+} from '@/db/queries/pending-changes';
+import { getAssetById, updateAsset } from '@/db/queries/assets';
+import { getTransactionById, updateTransactionCategory } from '@/db/queries/transactions';
+import { insertCategorizationRule } from '@/db/queries/categorization-rules';
+import { insertAuditEvent } from '@/db/queries/audit-events';
+import type { AssetUpdatePayload } from '@/ai/tools/update-asset';
+import type { TxnTagPayload } from '@/ai/tools/tag-transaction';
+import type { RuleCreatePayload } from '@/ai/tools/create-rule-draft';
+import type { AssetId, PendingChangeId, TransactionId, UserId } from '@/shared/types';
+
+export type ActionResult = { error?: string };
+
+// ---------------------------------------------------------------------------
+// approveChangeAction
+// ---------------------------------------------------------------------------
+
+/**
+ * Approve a pending AI write proposal. Validates ownership, applies the
+ * change inside a DB transaction, writes an audit event, and marks the
+ * proposal as applied. Revalidates the relevant route on success.
+ *
+ * Structural guarantee: this is the ONLY place pending proposals become
+ * real writes. Write tools only produce proposals; they never write directly.
+ */
+export async function approveChangeAction(proposalId: string): Promise<ActionResult> {
+  const { userId: clerkId } = await auth();
+  if (!clerkId) return { error: 'Unauthorized' };
+
+  const user = await findUserByClerkId(clerkId);
+  if (!user) return { error: 'User not found' };
+
+  const proposal = await getPendingChangeById(proposalId as PendingChangeId);
+  if (!proposal) return { error: 'Proposal not found' };
+  if (proposal.userId !== user.id) return { error: 'Forbidden' };
+  if (proposal.status !== 'pending') return { error: 'Proposal already resolved' };
+
+  const userId = user.id as UserId;
+  const appliedAt = new Date();
+
+  try {
+    await db.transaction(async () => {
+      if (proposal.kind === 'asset_update') {
+        await applyAssetUpdate(proposal.payload, userId, clerkId);
+      } else if (proposal.kind === 'txn_tag') {
+        await applyTxnTag(proposal.payload, userId, clerkId);
+      } else if (proposal.kind === 'rule_create') {
+        await applyRuleCreate(proposal.payload, userId, clerkId);
+      } else {
+        throw new Error(`Unknown proposal kind: ${proposal.kind}`);
+      }
+
+      await applyPendingChange(proposalId as PendingChangeId, appliedAt);
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to apply change';
+    return { error: message };
+  }
+
+  // Revalidate per kind so affected dashboards refresh.
+  if (proposal.kind === 'asset_update') {
+    revalidatePath('/dashboard/assets');
+    revalidatePath('/dashboard');
+  } else if (proposal.kind === 'txn_tag') {
+    revalidatePath('/dashboard/cash-flow');
+    revalidatePath('/dashboard');
+  } else {
+    revalidatePath('/dashboard');
+  }
+
+  return {};
+}
+
+// ---------------------------------------------------------------------------
+// rejectChangeAction
+// ---------------------------------------------------------------------------
+
+/**
+ * Reject a pending AI write proposal. Marks it rejected without touching
+ * any live table. No audit event is written — rejection is passive.
+ */
+export async function rejectChangeAction(proposalId: string): Promise<ActionResult> {
+  const { userId: clerkId } = await auth();
+  if (!clerkId) return { error: 'Unauthorized' };
+
+  const user = await findUserByClerkId(clerkId);
+  if (!user) return { error: 'User not found' };
+
+  const proposal = await getPendingChangeById(proposalId as PendingChangeId);
+  if (!proposal) return { error: 'Proposal not found' };
+  if (proposal.userId !== user.id) return { error: 'Forbidden' };
+  if (proposal.status !== 'pending') return { error: 'Proposal already resolved' };
+
+  await rejectPendingChange(proposalId as PendingChangeId);
+  return {};
+}
+
+// ---------------------------------------------------------------------------
+// Private helpers — one per proposal kind
+// ---------------------------------------------------------------------------
+
+async function applyAssetUpdate(
+  rawPayload: unknown,
+  userId: UserId,
+  clerkId: string,
+): Promise<void> {
+  const payload = rawPayload as AssetUpdatePayload;
+
+  const asset = await getAssetById(payload.assetId as AssetId);
+  if (!asset) throw new Error('Asset not found');
+  if (asset.userId !== userId) throw new Error('Forbidden');
+
+  const valueChanging = payload.valueCents !== undefined;
+  const patch: Parameters<typeof updateAsset>[1] = {
+    ...(payload.name !== undefined && { name: payload.name }),
+    ...(valueChanging && { valueCents: BigInt(payload.valueCents!) }),
+    source: 'user',
+    confidence: 1.0,
+    ...(valueChanging && { manualOverride: true }),
+  };
+
+  await updateAsset(payload.assetId as AssetId, patch);
+
+  await insertAuditEvent({
+    actor: clerkId,
+    action: 'asset.update',
+    entityType: 'asset',
+    entityId: payload.assetId,
+    before: {
+      valueCents: asset.valueCents.toString(),
+      name: asset.name,
+    },
+    after: {
+      ...(valueChanging && { valueCents: payload.valueCents }),
+      ...(payload.name !== undefined && { name: payload.name }),
+    },
+    source: 'user',
+    confidence: 1.0,
+  });
+}
+
+async function applyTxnTag(rawPayload: unknown, userId: UserId, clerkId: string): Promise<void> {
+  const payload = rawPayload as TxnTagPayload;
+
+  const txn = await getTransactionById(payload.transactionId as TransactionId);
+  if (!txn) throw new Error('Transaction not found');
+  if (txn.userId !== userId) throw new Error('Forbidden');
+
+  await updateTransactionCategory(payload.transactionId as TransactionId, payload.category, 'user');
+
+  await insertAuditEvent({
+    actor: clerkId,
+    action: 'txn.tag',
+    entityType: 'transaction',
+    entityId: payload.transactionId,
+    before: { category: txn.category ?? null, categorySource: txn.categorySource ?? null },
+    after: { category: payload.category, categorySource: 'user' },
+    source: 'user',
+    confidence: 1.0,
+  });
+}
+
+async function applyRuleCreate(
+  rawPayload: unknown,
+  userId: UserId,
+  clerkId: string,
+): Promise<void> {
+  const payload = rawPayload as RuleCreatePayload;
+
+  const rule = await insertCategorizationRule({
+    userId,
+    predicate: payload.predicate,
+    setCategory: payload.setCategory,
+    active: true,
+  });
+
+  await insertAuditEvent({
+    actor: clerkId,
+    action: 'rule.create',
+    entityType: 'categorization_rule',
+    entityId: rule.id,
+    before: null,
+    after: { predicate: payload.predicate, setCategory: payload.setCategory },
+    source: 'user',
+    confidence: 1.0,
+  });
+}

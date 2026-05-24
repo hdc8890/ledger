@@ -416,7 +416,29 @@ export const pendingChanges = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// llm_usage
+// categorization_rules
+// User-defined rules that map merchant/category predicates to a target
+// category. Inserted when a 'rule_create' pending_change is approved.
+// Applied during Phase 4 enrichment to auto-tag matching transactions.
+// ---------------------------------------------------------------------------
+export const categorizationRules = pgTable(
+  'categorization_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Matching conditions (at least one must be non-null). */
+    predicate: jsonb('predicate').notNull(),
+    /** The category to assign when the predicate matches. */
+    setCategory: text('set_category').notNull(),
+    /** Whether the rule is currently active. Soft-disabled rather than deleted. */
+    active: boolean('active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('categorization_rules_user_id_idx').on(t.userId)],
+);
 // Append-only log of every LLM call. Persisted by the logLlmCall helper
 // (Phase 3 Task 7). Used for cost monitoring in Settings. No updated_at
 // because rows are immutable.
