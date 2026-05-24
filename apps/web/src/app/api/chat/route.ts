@@ -1,16 +1,23 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
+import { streamText, generateText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { findUserByClerkId } from '@/db/queries/users';
-import { createChatSession, getChatSessionById, touchChatSession } from '@/db/queries/chat-sessions';
+import {
+  createChatSession,
+  getChatSessionById,
+  touchChatSession,
+  updateChatSessionTitle,
+} from '@/db/queries/chat-sessions';
 import { insertChatMessage } from '@/db/queries/chat-messages';
 import { insertLlmUsage, estimateCostUsd } from '@/db/queries/llm-usage';
 import { buildTools } from '@/ai/tools/registry';
 import type { ChatSessionId, UserId } from '@/shared/types';
 
 const MODEL = 'claude-sonnet-4-5';
+/** Cheap model used only for generating short session titles (fire-and-forget). */
+const TITLE_MODEL = 'claude-haiku-4-5';
 
 // ---------------------------------------------------------------------------
 // POST /api/chat
@@ -47,6 +54,32 @@ Guidelines:
 - Write tools (update_asset, tag_transaction, create_rule_draft) return proposals that the user must approve. Always present the proposal and explain what will change — never imply the change has already happened.
 
 You have access to the user's accounts, transactions, assets, and liabilities.`;
+}
+
+/**
+ * Asynchronously generate a short title for a chat session from the first
+ * user message. Called fire-and-forget in onFinish; errors are logged but
+ * never surfaced to the user.
+ */
+async function generateSessionTitle(
+  sessionId: ChatSessionId,
+  firstUserMessage: string,
+): Promise<void> {
+  try {
+    const { text } = await generateText({
+      model: anthropic(TITLE_MODEL),
+      prompt: `Generate a concise 3-6 word title for a financial chat conversation that starts with this user message. Return only the title — no punctuation, no quotes, no explanation.
+
+User message: "${firstUserMessage.slice(0, 300)}"`,
+      maxOutputTokens: 20,
+    });
+    const title = text.trim().replace(/^["']|["']$/g, '');
+    if (title) {
+      await updateChatSessionTitle(sessionId, title);
+    }
+  } catch (err) {
+    console.error('[chat/route] title generation error:', err);
+  }
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -108,6 +141,18 @@ export async function POST(request: Request): Promise<Response> {
       content: { text: textContent },
       toolCalls: null,
     });
+  }
+
+  // Fire-and-forget title generation when this is the first user message.
+  const isFirstUserMessage =
+    session.title === null && uiMessages.filter((m) => m.role === 'user').length === 1;
+  if (isFirstUserMessage && lastUserMessage) {
+    const textPart = lastUserMessage.parts.find((p) => (p as { type: string }).type === 'text');
+    const firstText =
+      textPart != null ? (textPart as { type: 'text'; text: string }).text : '';
+    if (firstText) {
+      void generateSessionTitle(sessionId as ChatSessionId, firstText);
+    }
   }
 
   // 6. Convert UIMessage[] → ModelMessage[] for streamText.
