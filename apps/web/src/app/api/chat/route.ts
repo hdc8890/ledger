@@ -1,12 +1,13 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { streamText, convertToModelMessages, type UIMessage } from 'ai';
+import { streamText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { findUserByClerkId } from '@/db/queries/users';
 import { createChatSession, getChatSessionById, touchChatSession } from '@/db/queries/chat-sessions';
 import { insertChatMessage } from '@/db/queries/chat-messages';
 import { insertLlmUsage, estimateCostUsd } from '@/db/queries/llm-usage';
+import { buildTools } from '@/ai/tools/registry';
 import type { ChatSessionId, UserId } from '@/shared/types';
 
 const MODEL = 'claude-sonnet-4-5';
@@ -38,12 +39,12 @@ function buildSystemPrompt(currentDate: string): string {
 Today's date: ${currentDate}
 
 Guidelines:
-- Never compute totals or balances yourself — always use the provided tools (available in later phases).
+- Never compute totals or balances yourself — always use the provided tools.
 - Never invent or estimate a transaction that isn't in the data.
 - Do not provide tax, legal, or investment advice.
 - When stating a number, always cite the source (account name, date range, etc.).
 - Be concise, accurate, and honest about what you do and don't know.
-- If a request requires data you can't access yet, say so clearly.
+- Write tools (update_asset, tag_transaction, create_rule_draft) return proposals that the user must approve. Always present the proposal and explain what will change — never imply the change has already happened.
 
 You have access to the user's accounts, transactions, assets, and liabilities.`;
 }
@@ -119,6 +120,8 @@ export async function POST(request: Request): Promise<Response> {
       model: anthropic(MODEL),
       system: buildSystemPrompt(new Date().toISOString().split('T')[0] ?? ''),
       messages: modelMessages,
+      tools: buildTools({ userId }),
+      stopWhen: stepCountIs(10),
       onFinish: async ({ text, usage }) => {
         try {
           const latencyMs = Date.now() - streamStart;
