@@ -2,11 +2,14 @@
 
 import { useEffect, useRef } from 'react';
 import { useChat } from '@ai-sdk/react';
+import type { UIMessage } from 'ai';
 import { ChatInput } from './chat-input';
 import { MessageBubble } from './message-bubble';
 
 interface ChatWindowProps {
   sessionId: string;
+  /** Persisted messages loaded server-side for session resume. */
+  initialMessages?: UIMessage[];
 }
 
 /**
@@ -15,10 +18,12 @@ interface ChatWindowProps {
  * Uses the AI SDK v6 `useChat` hook which communicates with POST /api/chat.
  * The `id` option ensures the session ID is sent in the request body so the
  * server can persist messages to the correct session.
+ * `initialMessages` is populated server-side when resuming an existing session.
  */
-export function ChatWindow({ sessionId }: ChatWindowProps) {
+export function ChatWindow({ sessionId, initialMessages }: ChatWindowProps) {
   const { messages, status, sendMessage, error } = useChat({
     id: sessionId,
+    ...(initialMessages !== undefined ? { messages: initialMessages } : {}),
   });
 
   const bottomRef = useRef<HTMLDivElement>(null);

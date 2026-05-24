@@ -1,4 +1,11 @@
+import { auth } from '@clerk/nextjs/server';
+import { redirect, notFound } from 'next/navigation';
+import { findUserByClerkId } from '@/db/queries/users';
+import { getChatSessionById } from '@/db/queries/chat-sessions';
+import { getChatMessagesBySessionId } from '@/db/queries/chat-messages';
+import { chatRowsToUIMessages } from '@/shared/chat-utils';
 import { ChatWindow } from '@/components/chat/chat-window';
+import type { ChatSessionId, UserId } from '@/shared/types';
 
 interface ChatSessionPageProps {
   params: Promise<{ sessionId: string }>;
@@ -7,12 +14,31 @@ interface ChatSessionPageProps {
 /**
  * /chat/[sessionId] — renders the chat window for a specific session.
  *
- * The ChatWindow is a client component that owns the streaming state via
- * `useChat`. The session row is created lazily in the API route on the
- * first message, so navigating to a new UUID before chatting is safe.
+ * For new sessions (UUID not yet in DB), renders an empty window; the session
+ * row is created lazily on the first message. For existing sessions, loads
+ * persisted messages from DB and passes them as initialMessages to the chat
+ * hook so the conversation is immediately resumable.
  */
 export default async function ChatSessionPage({ params }: ChatSessionPageProps) {
   const { sessionId } = await params;
 
-  return <ChatWindow sessionId={sessionId} />;
+  const { userId: clerkId } = await auth();
+  if (!clerkId) redirect('/sign-in');
+
+  const user = await findUserByClerkId(clerkId);
+  if (!user) redirect('/sign-in');
+
+  // Validate the session exists and belongs to this user.
+  // A session may not exist yet if the UUID is freshly generated on the client
+  // before the first message — that is fine; we render an empty window.
+  const session = await getChatSessionById(sessionId as ChatSessionId);
+
+  if (session && session.userId !== (user.id as UserId)) {
+    notFound();
+  }
+
+  const rows = session ? await getChatMessagesBySessionId(sessionId as ChatSessionId) : [];
+  const initialMessages = chatRowsToUIMessages(rows);
+
+  return <ChatWindow sessionId={sessionId} initialMessages={initialMessages} />;
 }
