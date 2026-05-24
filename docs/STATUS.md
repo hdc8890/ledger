@@ -10,7 +10,7 @@ Updated at the start/end of each phase or significant milestone.
 **Stage:** Active development — Phase 3 in progress  
 **Active Phase:** Phase 3 — AI Chat MVP  
 **Last Completed:** Phase 2 — Dashboard MVP (all 7 tasks ✅)  
-**Current Task:** Phase 3 Task 6 — Cost + token logging
+**Current Task:** Phase 3 Task 8 — Rate limiting
 
 ---
 
@@ -20,7 +20,7 @@ Updated at the start/end of each phase or significant milestone.
 |-------|------|--------|-------|
 | 1 | Foundation | ✅ Done | All 6 tasks complete |
 | 2 | Dashboard MVP | ✅ Done | All 7 tasks complete — 4 dashboards, empty states, skeletons, RSC-first, coverage ≥70% |
-| 3 | AI Chat MVP | 🔄 In progress | Tasks 1–5 ✅ (chat route + streaming UI, tool registry 10 tools, write-tool safety pattern, conversation persistence + auto-title); Task 6 next |
+| 3 | AI Chat MVP | 🔄 In progress | Tasks 1–7 ✅ (chat route + streaming UI, tool registry 10 tools, write-tool safety pattern, conversation persistence + auto-title, cost + token logging); Task 8 next |
 | 4 | AI Enrichment | 🔲 Not started | Awaits Phase 3 |
 | 5 | Memory Layer | 🔲 Not started | Awaits Phase 3 |
 | 6 | Goal-Based Planning | 🔲 Not started | Awaits Phase 5 |
