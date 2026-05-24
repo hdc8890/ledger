@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { count, desc, eq, sum } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { llmUsage } from '@/db/schema';
 import type { LlmUsageId, UserId } from '@/shared/types';
@@ -46,3 +46,61 @@ export async function getLlmUsageByUserId(userId: UserId): Promise<LlmUsageRow[]
 }
 
 export type { LlmUsageId };
+
+export type LlmUsageTotals = {
+  totalCalls: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  /** Summed estimated cost as a formatted decimal string (e.g. "0.012345"). */
+  totalCostUsd: string;
+};
+
+/**
+ * Single call site for logging every LLM call. Computes the cost estimate
+ * and inserts into `llm_usage` in one step.
+ *
+ * Per AGENTS.md §6: every LLM call must log model, input tokens, output tokens,
+ * latency, cost estimate, and tool calls via this helper.
+ */
+export async function logLlmCall(params: {
+  readonly userId: UserId;
+  readonly model: string;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly latencyMs: number;
+  readonly toolCalls?: readonly string[] | null;
+}): Promise<LlmUsageRow> {
+  return insertLlmUsage({
+    userId: params.userId,
+    model: params.model,
+    inputTokens: params.inputTokens,
+    outputTokens: params.outputTokens,
+    latencyMs: params.latencyMs,
+    toolCalls: params.toolCalls ? [...params.toolCalls] : null,
+    estimatedCostUsd: estimateCostUsd(params.model, params.inputTokens, params.outputTokens),
+  });
+}
+
+/**
+ * Aggregate totals for the Settings cost surface. Returns 0-values when
+ * the user has no usage rows yet.
+ */
+export async function getLlmUsageTotals(userId: UserId): Promise<LlmUsageTotals> {
+  const rows = await db
+    .select({
+      totalCalls: count(),
+      totalInputTokens: sum(llmUsage.inputTokens),
+      totalOutputTokens: sum(llmUsage.outputTokens),
+      totalCostUsd: sum(llmUsage.estimatedCostUsd),
+    })
+    .from(llmUsage)
+    .where(eq(llmUsage.userId, userId));
+
+  const row = rows[0];
+  return {
+    totalCalls: row?.totalCalls ?? 0,
+    totalInputTokens: Number(row?.totalInputTokens ?? 0),
+    totalOutputTokens: Number(row?.totalOutputTokens ?? 0),
+    totalCostUsd: row?.totalCostUsd ?? '0.000000',
+  };
+}

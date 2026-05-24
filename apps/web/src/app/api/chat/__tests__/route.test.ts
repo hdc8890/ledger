@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ---------------------------------------------------------------------------
 const {
   mockAuth, mockFindUser, mockGetSession, mockCreateSession, mockInsertMessage,
-  mockTouchSession, mockStreamText, mockConvertMessages, mockInsertLlmUsage,
+  mockTouchSession, mockStreamText, mockConvertMessages, mockLogLlmCall,
   mockUpdateTitle, mockGenerateText,
 } = vi.hoisted(() => {
   const mockAuth = vi.fn();
@@ -16,13 +16,13 @@ const {
   const mockTouchSession = vi.fn();
   const mockStreamText = vi.fn();
   const mockConvertMessages = vi.fn();
-  const mockInsertLlmUsage = vi.fn();
+  const mockLogLlmCall = vi.fn();
   const mockUpdateTitle = vi.fn();
   const mockGenerateText = vi.fn();
   return {
     mockAuth, mockFindUser, mockGetSession, mockCreateSession,
     mockInsertMessage, mockTouchSession, mockStreamText, mockConvertMessages,
-    mockInsertLlmUsage, mockUpdateTitle, mockGenerateText,
+    mockLogLlmCall, mockUpdateTitle, mockGenerateText,
   };
 });
 
@@ -36,8 +36,7 @@ vi.mock('@/db/queries/chat-sessions', () => ({
 }));
 vi.mock('@/db/queries/chat-messages', () => ({ insertChatMessage: mockInsertMessage }));
 vi.mock('@/db/queries/llm-usage', () => ({
-  insertLlmUsage: mockInsertLlmUsage,
-  estimateCostUsd: vi.fn(() => '0.000010'),
+  logLlmCall: mockLogLlmCall,
 }));
 vi.mock('@/ai/tools/registry', () => ({ buildTools: vi.fn(() => ({})) }));
 vi.mock('ai', () => ({
@@ -68,7 +67,7 @@ describe('POST /api/chat', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConvertMessages.mockResolvedValue([]);
-    mockInsertLlmUsage.mockResolvedValue({});
+    mockLogLlmCall.mockResolvedValue({});
     // Default: generateText returns a valid response so fire-and-forget title
     // generation doesn't produce uncaught destructuring errors in unrelated tests.
     mockGenerateText.mockResolvedValue({ text: 'Test Title' });
@@ -222,5 +221,68 @@ describe('POST /api/chat', () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(mockGenerateText).not.toHaveBeenCalled();
+  });
+
+  it('logs tool call names to logLlmCall when tools were invoked', async () => {
+    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
+    mockFindUser.mockResolvedValue(USER);
+    mockGetSession.mockResolvedValue(SESSION);
+    mockInsertMessage.mockResolvedValue({});
+
+    // Simulate streamText invoking onFinish with tool calls.
+    mockStreamText.mockImplementation(
+      ({ onFinish }: { onFinish?: (r: Record<string, unknown>) => Promise<void> }) => {
+        void onFinish?.({
+          text: 'Here are your accounts.',
+          usage: { inputTokens: 500, outputTokens: 100 },
+          toolCalls: [
+            { toolName: 'get_accounts', toolCallId: 'tc-1', args: {} },
+            { toolName: 'calculate_networth', toolCallId: 'tc-2', args: {} },
+          ],
+        });
+        return { toUIMessageStreamResponse: () => new Response('stream', { status: 200 }) };
+      },
+    );
+
+    await POST(makeRequest({
+      id: SESSION_ID,
+      messages: [{ id: 'msg-1', role: 'user', parts: [{ type: 'text', text: 'What are my accounts?' }] }],
+    }));
+    // Give fire-and-forget a tick to settle.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockLogLlmCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolCalls: ['get_accounts', 'calculate_networth'],
+      }),
+    );
+  });
+
+  it('passes toolCalls: null to logLlmCall when no tools were invoked', async () => {
+    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
+    mockFindUser.mockResolvedValue(USER);
+    mockGetSession.mockResolvedValue(SESSION);
+    mockInsertMessage.mockResolvedValue({});
+
+    mockStreamText.mockImplementation(
+      ({ onFinish }: { onFinish?: (r: Record<string, unknown>) => Promise<void> }) => {
+        void onFinish?.({
+          text: 'Hello!',
+          usage: { inputTokens: 100, outputTokens: 20 },
+          toolCalls: [],
+        });
+        return { toUIMessageStreamResponse: () => new Response('stream', { status: 200 }) };
+      },
+    );
+
+    await POST(makeRequest({
+      id: SESSION_ID,
+      messages: [{ id: 'msg-1', role: 'user', parts: [{ type: 'text', text: 'Hi' }] }],
+    }));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockLogLlmCall).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCalls: null }),
+    );
   });
 });

@@ -11,7 +11,7 @@ import {
   updateChatSessionTitle,
 } from '@/db/queries/chat-sessions';
 import { insertChatMessage } from '@/db/queries/chat-messages';
-import { insertLlmUsage, estimateCostUsd } from '@/db/queries/llm-usage';
+import { logLlmCall } from '@/db/queries/llm-usage';
 import { buildTools } from '@/ai/tools/registry';
 import type { ChatSessionId, UserId } from '@/shared/types';
 
@@ -167,7 +167,7 @@ export async function POST(request: Request): Promise<Response> {
       messages: modelMessages,
       tools: buildTools({ userId }),
       stopWhen: stepCountIs(10),
-      onFinish: async ({ text, usage }) => {
+      onFinish: async ({ text, usage, toolCalls }) => {
         try {
           const latencyMs = Date.now() - streamStart;
           if (text) {
@@ -179,14 +179,13 @@ export async function POST(request: Request): Promise<Response> {
             });
           }
           await touchChatSession(sessionId as ChatSessionId);
-          await insertLlmUsage({
+          await logLlmCall({
             userId,
             model: MODEL,
             inputTokens: usage.inputTokens ?? 0,
             outputTokens: usage.outputTokens ?? 0,
             latencyMs,
-            toolCalls: null,
-            estimatedCostUsd: estimateCostUsd(MODEL, usage.inputTokens ?? 0, usage.outputTokens ?? 0),
+            toolCalls: toolCalls.length > 0 ? toolCalls.map((tc) => tc.toolName) : null,
           });
         } catch (err) {
           // Log but do not abort the stream response — the user already
