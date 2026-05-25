@@ -1,6 +1,6 @@
 # Phase 3 — AI Chat MVP
 
-**Status:** 🔄 In progress — Tasks 1–7 complete (Task 8 next: Rate limiting)  
+**Status:** ✅ Done — All 8 tasks complete  
 **Estimated duration:** 1–2 weeks  
 **Depends on:** Phase 1 complete (Phase 2 recommended)  
 **Goal:** A streaming chat interface where the AI can answer financial
@@ -78,9 +78,8 @@ Guardrails (hard-coded in prompt):
 `logLlmCall(model, inputTokens, outputTokens, latencyMs, toolCalls[])` helper.
 Persist to `llm_usage` table. Surface total cost in Settings.
 
-### 8. Rate limiting
-Postgres token-bucket or Upstash Redis. Cap: e.g. 50 requests/hour
-per user. Return 429 with a friendly message.
+### ✅ 8. Rate limiting
+Postgres token-bucket. Cap: 50 requests/hour per user. Returns 429 with a friendly message and accurate Retry-After header.
 
 ---
 
