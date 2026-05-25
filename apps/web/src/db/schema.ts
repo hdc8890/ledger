@@ -439,6 +439,27 @@ export const categorizationRules = pgTable(
   },
   (t) => [index('categorization_rules_user_id_idx').on(t.userId)],
 );
+// ---------------------------------------------------------------------------
+// chat_rate_limits
+// Postgres token-bucket for the chat endpoint. One row per user.
+// tokens is atomically decremented on each request; the bucket refills to
+// RATE_LIMIT_CAP (50) after RATE_LIMIT_WINDOW (1 hour) has elapsed since
+// refilled_at. The update uses INSERT...ON CONFLICT...DO UPDATE so the first
+// request auto-creates the row. No updated_at — the row is mutated atomically
+// via raw SQL rather than Drizzle UPDATE, so a trigger would race.
+// ---------------------------------------------------------------------------
+export const chatRateLimits = pgTable('chat_rate_limits', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  /** Remaining tokens in the current window (0 = exhausted). */
+  tokens: integer('tokens').notNull(),
+  /** UTC timestamp when the current window started (used to detect expiry). */
+  refilledAt: timestamp('refilled_at', { withTimezone: true }).notNull().defaultNow(),
+  /** Row creation timestamp — set once on first request and never changed. */
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // Append-only log of every LLM call. Persisted by the logLlmCall helper
 // (Phase 3 Task 7). Used for cost monitoring in Settings. No updated_at
 // because rows are immutable.
