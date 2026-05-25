@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const {
   mockAuth, mockFindUser, mockGetSession, mockCreateSession, mockInsertMessage,
   mockTouchSession, mockStreamText, mockConvertMessages, mockLogLlmCall,
-  mockUpdateTitle, mockGenerateText,
+  mockUpdateTitle, mockGenerateText, mockCheckRateLimit,
 } = vi.hoisted(() => {
   const mockAuth = vi.fn();
   const mockFindUser = vi.fn();
@@ -19,10 +19,11 @@ const {
   const mockLogLlmCall = vi.fn();
   const mockUpdateTitle = vi.fn();
   const mockGenerateText = vi.fn();
+  const mockCheckRateLimit = vi.fn();
   return {
     mockAuth, mockFindUser, mockGetSession, mockCreateSession,
     mockInsertMessage, mockTouchSession, mockStreamText, mockConvertMessages,
-    mockLogLlmCall, mockUpdateTitle, mockGenerateText,
+    mockLogLlmCall, mockUpdateTitle, mockGenerateText, mockCheckRateLimit,
   };
 });
 
@@ -37,6 +38,9 @@ vi.mock('@/db/queries/chat-sessions', () => ({
 vi.mock('@/db/queries/chat-messages', () => ({ insertChatMessage: mockInsertMessage }));
 vi.mock('@/db/queries/llm-usage', () => ({
   logLlmCall: mockLogLlmCall,
+}));
+vi.mock('@/db/queries/rate-limits', () => ({
+  checkAndConsumeRateLimit: mockCheckRateLimit,
 }));
 vi.mock('@/ai/tools/registry', () => ({ buildTools: vi.fn(() => ({})) }));
 vi.mock('ai', () => ({
@@ -68,6 +72,8 @@ describe('POST /api/chat', () => {
     vi.clearAllMocks();
     mockConvertMessages.mockResolvedValue([]);
     mockLogLlmCall.mockResolvedValue({});
+    // Default: rate limit allows the request.
+    mockCheckRateLimit.mockResolvedValue({ allowed: true, tokensRemaining: 49 });
     // Default: generateText returns a valid response so fire-and-forget title
     // generation doesn't produce uncaught destructuring errors in unrelated tests.
     mockGenerateText.mockResolvedValue({ text: 'Test Title' });
@@ -284,5 +290,22 @@ describe('POST /api/chat', () => {
     expect(mockLogLlmCall).toHaveBeenCalledWith(
       expect.objectContaining({ toolCalls: null }),
     );
+  });
+
+  it('returns 429 with friendly message when rate limit is exhausted', async () => {
+    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
+    mockFindUser.mockResolvedValue(USER);
+    mockCheckRateLimit.mockResolvedValue({ allowed: false, retryAfterSeconds: 3600 });
+
+    const res = await POST(makeRequest({
+      id: SESSION_ID,
+      messages: [{ id: 'msg-1', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }],
+    }));
+
+    expect(res.status).toBe(429);
+    const body = await res.json() as { error: string; retryAfterSeconds: number };
+    expect(body.error).toBe('Too many requests');
+    expect(body.retryAfterSeconds).toBe(3600);
+    expect(mockStreamText).not.toHaveBeenCalled();
   });
 });
