@@ -12,6 +12,7 @@ import {
 } from '@/db/queries/chat-sessions';
 import { insertChatMessage } from '@/db/queries/chat-messages';
 import { logLlmCall } from '@/db/queries/llm-usage';
+import { checkAndConsumeRateLimit } from '@/db/queries/rate-limits';
 import { buildTools } from '@/ai/tools/registry';
 import type { ChatSessionId, UserId } from '@/shared/types';
 
@@ -115,7 +116,23 @@ export async function POST(request: Request): Promise<Response> {
 
   const userId = user.id as UserId;
 
-  // 4. Ensure session exists — create lazily on first message.
+  // 4. Rate limit — 50 requests/hour per user (Postgres token bucket).
+  const rateLimit = await checkAndConsumeRateLimit(userId);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      {
+        error: 'Too many requests',
+        message: `You've reached the chat limit of 50 requests per hour. Please try again in about an hour.`,
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+      },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+      },
+    );
+  }
+
+  // 5. Ensure session exists — create lazily on first message.
   let session = await getChatSessionById(sessionId as ChatSessionId);
   if (!session) {
     session = await createChatSession({
@@ -128,7 +145,7 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // 5. Persist the last user message (the new turn sent by the client).
+  // 6. Persist the last user message (the new turn sent by the client).
   const uiMessages = rawMessages as UIMessage[];
   const lastUserMessage = uiMessages.findLast((m) => m.role === 'user');
   if (lastUserMessage) {
@@ -155,10 +172,10 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  // 6. Convert UIMessage[] → ModelMessage[] for streamText.
+  // 7. Convert UIMessage[] → ModelMessage[] for streamText.
   const modelMessages = await convertToModelMessages(uiMessages);
 
-  // 7. Stream response.
+  // 8. Stream response.
   const streamStart = Date.now();
   try {
     const result = streamText({
