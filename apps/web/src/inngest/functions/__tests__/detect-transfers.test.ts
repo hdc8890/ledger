@@ -45,6 +45,7 @@ import type { TransactionId } from '@/shared/types';
 function makeStep() {
   return {
     run: vi.fn().mockImplementation(async (_id: string, fn: () => Promise<unknown>) => fn()),
+    sendEvent: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -167,5 +168,22 @@ describe('handleDetectTransfers', () => {
     expect(mockMarkTransactionAsTransfer).not.toHaveBeenCalled();
     expect(mockUpsertTransferLink).not.toHaveBeenCalled();
     expect(mockInsertAuditEvent).not.toHaveBeenCalled();
+  });
+
+  it('always chains to detect-recurring after completing', async () => {
+    mockGetTransactionsForTransferDetection.mockResolvedValue([]);
+    mockDetectTransferPairs.mockReturnValue([]);
+
+    const ctx = makeCtx();
+    await handleDetectTransfers(ctx);
+
+    expect(ctx.step.sendEvent).toHaveBeenCalledOnce();
+    expect(ctx.step.sendEvent).toHaveBeenCalledWith(
+      'enqueue-recurring-detection',
+      expect.objectContaining({
+        name: 'enrichment/transactions.detect-recurring',
+        data: { userId: 'user-uuid' },
+      }),
+    );
   });
 });
