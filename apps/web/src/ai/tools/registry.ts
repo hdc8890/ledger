@@ -30,6 +30,18 @@ import {
   handler as createRuleDraftHandler,
   inputSchema as createRuleDraftInput,
 } from './create-rule-draft';
+import {
+  handler as saveMemoryHandler,
+  inputSchema as saveMemoryInput,
+} from './save-memory';
+import {
+  handler as deleteMemoryHandler,
+  inputSchema as deleteMemoryInput,
+} from './delete-memory';
+import {
+  handler as listMemoriesHandler,
+  inputSchema as listMemoriesInput,
+} from './list-memories';
 import type { ToolContext } from './context';
 
 /**
@@ -116,6 +128,30 @@ export function buildTools(ctx: ToolContext) {
         'Propose a new categorization rule (e.g. "merchant contains Costco → Groceries"). Returns a proposal ID for the user to approve. Do not create the rule without presenting the approval card.',
       inputSchema: createRuleDraftInput,
       execute: (input) => createRuleDraftHandler(input, ctx),
+    }),
+
+    // ------------------------------------------------------------------
+    // Memory tools — read/write the user's persistent memory store
+    // ------------------------------------------------------------------
+    save_memory: tool({
+      description:
+        'Persist a preference, rule, or fact about the user to long-term memory. Use when the user expresses a lasting preference or rule (e.g. "Costco is always groceries"). Text must be semantic — do not include raw dollar amounts, account numbers, or institution names.',
+      inputSchema: saveMemoryInput,
+      execute: (input) => saveMemoryHandler(input, ctx),
+    }),
+
+    delete_memory: tool({
+      description:
+        "Hard-delete a specific memory by its ID. Use when the user says 'forget that' or asks to remove a stored preference. This permanently removes the memory.",
+      inputSchema: deleteMemoryInput,
+      execute: (input) => deleteMemoryHandler(input, ctx),
+    }),
+
+    list_memories: tool({
+      description:
+        "Return a paginated list of the user's stored memories, optionally filtered by kind. Use to show the user what the agent remembers, or to find a memory ID before deleting it.",
+      inputSchema: listMemoriesInput,
+      execute: (input) => listMemoriesHandler(input, ctx),
     }),
   };
 }
