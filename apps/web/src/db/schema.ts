@@ -14,8 +14,34 @@ import {
   unique,
   index,
   uniqueIndex,
+  customType,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+
+// ---------------------------------------------------------------------------
+// pgvector custom column type.
+// Stores embeddings as vector(N) in Postgres (requires pgvector extension).
+// TypeScript representation: number[] (raw floating-point values).
+// Driver wire format: "[0.1,0.2,...]" string — the pgvector text representation.
+// ---------------------------------------------------------------------------
+const pgVector = customType<{
+  data: number[];
+  driverData: string;
+  config: { dimensions: number };
+}>({
+  dataType(config) {
+    return `vector(${config?.dimensions ?? 1536})`;
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(',')}]`;
+  },
+  fromDriver(value: string): number[] {
+    return value
+      .slice(1, -1)
+      .split(',')
+      .map(Number);
+  },
+});
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -626,4 +652,95 @@ export const llmUsage = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('llm_usage_user_id_idx').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Phase 5 — Memory Layer tables
+// ---------------------------------------------------------------------------
+
+export const memoryKindEnum = pgEnum('memory_kind', [
+  'preference',
+  'household_rule',
+  'historical_context',
+  'goal',
+  'override_note',
+]);
+
+export const memoryProposalStatusEnum = pgEnum('memory_proposal_status', [
+  'pending',
+  'accepted',
+  'rejected',
+]);
+
+// ---------------------------------------------------------------------------
+// memories
+// Persistent semantic memories indexed by pgvector embeddings for ANN search.
+// Content is intentionally semantic — no raw amounts, account numbers, or
+// institution names (per AGENTS.md §0 privacy directive).
+//
+// embedding is nullable so a row can be inserted before the embedding is
+// computed (fire-and-forget embedding generation). Retrieval filters out rows
+// with a null embedding.
+//
+// The HNSW index for cosine similarity (vector_cosine_ops) is created in the
+// SQL migration because Drizzle's index() builder does not support custom
+// operator classes for vector columns.
+// ---------------------------------------------------------------------------
+export const memories = pgTable(
+  'memories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: memoryKindEnum('kind').notNull(),
+    /** Semantic content — must not contain raw amounts or account identifiers. */
+    text: text('text').notNull(),
+    /** 1536-dimensional text-embedding-3-small vector. Null until computed. */
+    embedding: pgVector('embedding', { dimensions: 1536 }),
+    /** Optional structured metadata: { source_txn_id, related_asset_id, … } */
+    metadata: jsonb('metadata'),
+    /** 0–1 confidence. 1.0 for user-confirmed memories, lower for auto-extracted. */
+    confidence: real('confidence').notNull().default(1.0),
+    /** Optional TTL — memory is excluded from retrieval after this timestamp. */
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('memories_user_id_idx').on(t.userId),
+    index('memories_user_kind_idx').on(t.userId, t.kind),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// memory_proposals
+// Auto-extracted memory candidates produced after each chat turn (Phase 5
+// Task 4). Stored as pending until the user accepts or dismisses the chip.
+//
+// Rejected proposals are retained (never re-proposed) to prevent repetition.
+// source_session_id is SET NULL on session deletion so the proposal is
+// preserved even if the originating conversation is deleted.
+// ---------------------------------------------------------------------------
+export const memoryProposals = pgTable(
+  'memory_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    proposedText: text('proposed_text').notNull(),
+    proposedKind: text('proposed_kind').notNull(),
+    /** Chat session that triggered the auto-extraction job. */
+    sourceSessionId: uuid('source_session_id').references(() => chatSessions.id, {
+      onDelete: 'set null',
+    }),
+    status: memoryProposalStatusEnum('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('memory_proposals_user_id_idx').on(t.userId),
+    index('memory_proposals_user_status_idx').on(t.userId, t.status),
+  ],
 );
