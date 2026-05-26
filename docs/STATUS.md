@@ -7,10 +7,10 @@ Updated at the start/end of each phase or significant milestone.
 
 ## Current State
 
-**Stage:** Active development — Phase 4 complete, Phase 5 next  
+**Stage:** Active development — Phase 5 in progress  
 **Active Phase:** Phase 5 — Memory Layer  
 **Last Completed:** Phase 4 — AI Enrichment  
-**Next Phase:** Phase 5 — Memory Layer
+**Next Phase:** Phase 6 — Goal-Based Planning
 
 ---
 
@@ -22,7 +22,7 @@ Updated at the start/end of each phase or significant milestone.
 | 2 | Dashboard MVP | ✅ Done | All 7 tasks complete — 4 dashboards, empty states, skeletons, RSC-first, coverage ≥70% |
 | 3 | AI Chat MVP | ✅ Done | All 8 tasks complete — streaming chat, 10 tools, write-tool safety, conversation persistence, cost logging, rate limiting |
 | 4 | AI Enrichment | ✅ Done | All 7 tasks complete — merchant normalization, category inference, transfer detection, recurring bill detection, historical backfill, correction UI (/transactions page + CategoryChip + correctCategoryAction + categorization rules + retag), dashboard query transfer exclusion confirmed |
-| 5 | Memory Layer | 🔄 In progress | Active phase |
+| 5 | Memory Layer | 🔄 In progress | Task 1 done: memories + memory_proposals tables, pgvector HNSW index, repository functions, AI memory helper with audit events |
 | 6 | Goal-Based Planning | 🔲 Not started | Awaits Phase 5 |
 
 Status legend: 🔲 Not started · 🔄 In progress · ✅ Done · 🚧 Blocked
