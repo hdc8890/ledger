@@ -8,7 +8,7 @@ Updated at the start/end of each phase or significant milestone.
 ## Current State
 
 **Stage:** Active development — Phase 4 in progress  
-**Active Phase:** Phase 4 — AI Enrichment (Task 1 ✅)  
+**Active Phase:** Phase 4 — AI Enrichment (Tasks 1–2 ✅)  
 **Last Completed:** Phase 3 — AI Chat MVP  
 **Next Phase:** —
 
@@ -21,7 +21,7 @@ Updated at the start/end of each phase or significant milestone.
 | 1 | Foundation | ✅ Done | All 6 tasks complete |
 | 2 | Dashboard MVP | ✅ Done | All 7 tasks complete — 4 dashboards, empty states, skeletons, RSC-first, coverage ≥70% |
 | 3 | AI Chat MVP | ✅ Done | All 8 tasks complete — streaming chat, 10 tools, write-tool safety, conversation persistence, cost logging, rate limiting |
-| 4 | AI Enrichment | 🔄 In progress | Task 1 (Merchant Normalization) complete — aliases table, normalization service, Inngest job, LLM fallback with audit trail |
+| 4 | AI Enrichment | 🔄 In progress | Tasks 1–2 complete — merchant normalization + category inference (25-leaf taxonomy, rule matching, LLM batch, audit trail) |
 | 5 | Memory Layer | 🔲 Not started | Awaits Phase 3 |
 | 6 | Goal-Based Planning | 🔲 Not started | Awaits Phase 5 |
 
@@ -51,7 +51,7 @@ Things not yet settled, to be resolved before or during the relevant phase.
 |----------|-----------|-------|
 | Auth.js vs Clerk | Phase 1 Task 2 | ~~Clerk preferred for speed; Auth.js if vendor concern outweighs DX~~ **Resolved: Clerk** |
 | Plaid Sandbox → Production timing | Phase 1 | Apply for Production access early (days of lead time) |
-| Category taxonomy (leaf count) | Phase 4 | Start with Plaid PFC, simplify to ~25 leaves |
+| ~~Category taxonomy (leaf count)~~ | ~~Phase 4~~ | **Resolved: 25-leaf taxonomy** — see `categorize.ts` `CATEGORY_TAXONOMY` |
 
 ---
 
