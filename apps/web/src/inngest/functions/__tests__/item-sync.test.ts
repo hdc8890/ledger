@@ -57,6 +57,7 @@ import { handleItemSync, type ItemSyncContext } from '../item-sync';
 function makeStep() {
   return {
     run: vi.fn().mockImplementation(async (_id: string, fn: () => Promise<unknown>) => fn()),
+    sendEvent: vi.fn().mockResolvedValue(undefined),
   };
 }
 

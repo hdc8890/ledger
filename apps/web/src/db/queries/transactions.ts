@@ -100,6 +100,47 @@ export async function updateTransactionCategory(
   return rows[0];
 }
 
+/**
+ * Update the normalized merchant name for a transaction.
+ * Called by the Phase 4 enrichment pipeline after merchant normalization.
+ */
+export async function updateTransactionMerchantNormalized(
+  id: TransactionId,
+  merchantNormalized: string,
+): Promise<TransactionRow | undefined> {
+  const rows = await db
+    .update(transactions)
+    .set({ merchantNormalized, updatedAt: new Date() })
+    .where(eq(transactions.id, id))
+    .returning();
+  return rows[0];
+}
+
+/**
+ * Fetch active transactions that have not yet been merchant-normalized.
+ * Used by the Phase 4 enrichment pipeline to find work to do.
+ * Results are ordered oldest-first so backfill processes in chronological order.
+ */
+export async function getTransactionsNeedingNormalization(
+  userId: UserId,
+  options: { limit?: number; offset?: number } = {},
+): Promise<TransactionRow[]> {
+  const { limit = 100, offset = 0 } = options;
+  return db
+    .select()
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        isNull(transactions.deletedAt),
+        isNull(transactions.merchantNormalized),
+      ),
+    )
+    .orderBy(transactions.postedAt)
+    .limit(limit)
+    .offset(offset);
+}
+
 export type TransactionFilter = {
   readonly startDate?: string; // YYYY-MM-DD inclusive
   readonly endDate?: string; // YYYY-MM-DD inclusive
