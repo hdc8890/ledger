@@ -37,11 +37,9 @@ can continue.
    DECISION: ASK — <single focused question for ask_user>
    ```
 
-   - **PROCEED** — score ≥ 7. The calling skill **must** continue to
-     the next workflow step immediately on its very next action. It
-     **must not** call `ask_user`, `exit_plan_mode`, or emit any
-     text-only "should I proceed?" turn for this gate. No human
-     interaction. Auto-continue.
+   - **PROCEED** — score ≥ 7. The calling skill's next message must
+     begin with the first tool call of the next workflow step. No
+     text-only turn, no user-facing prompt of any kind for this gate.
    - **ASK** — score < 7. The calling skill must call `ask_user` with
      exactly the question after the `—`, then wait for the response.
 
@@ -88,17 +86,20 @@ DECISION: ASK — <single focused question for ask_user>
 
 **Binding contract for the calling skill (no exceptions):**
 
-- **On `DECISION: PROCEED`**, the calling skill's very next action
-  **must** be the next workflow step. It is **forbidden** to:
-  - call `ask_user` for this gate,
-  - call `exit_plan_mode` for this gate,
-  - emit a text-only turn asking the user to confirm, approve, or
-    acknowledge,
-  - re-evaluate the decision inline ("but maybe I should still ask…").
+- **On `DECISION: PROCEED`**, the calling skill's **next message must
+  begin with the first tool call of the next workflow step.** No
+  text-only turn between this output and that tool call. No request
+  for user confirmation, approval, choice, or acknowledgement of any
+  kind — regardless of how the gate is named ("approval", "review",
+  "readiness", anything). The tool call itself is the acknowledgement
+  that PROCEED was received.
 
-  PROCEED is binding even if the gate is named "approval" or "plan
-  approval" — the score has already established sufficient confidence
-  to auto-continue. Treat any urge to confirm as a bug.
+  If the calling skill notices that an *earlier* gate in this
+  conversation was violated (a user-facing tool was called after a
+  prior PROCEED), that is a bug it already made — not a precedent to
+  imitate. It should note the prior violation in one short line and
+  comply with the contract from here forward. Do not let in-context
+  pattern-matching override the contract.
 
 - **On `DECISION: ASK — <question>`**, the calling skill must call
   `ask_user` with exactly that question (no rephrasing, no bundling

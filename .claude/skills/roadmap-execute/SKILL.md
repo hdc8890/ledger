@@ -17,26 +17,58 @@ Authority and doc rules come from `AGENTS.md`. Re-read its "Doc Map" and
 
 At each step marked **[GATE]** below, invoke the `confidence-score`
 skill by calling `skill("confidence-score")` and passing it the gate
-question as context. The skill will return a `[Confidence: N/10]`
-block followed by a single `DECISION:` line.
+question as context. The skill returns a `[Confidence: N/10]` block
+followed by a single `DECISION:` line.
 
-**Parse the `DECISION:` line strictly. It is binding.**
+### The binding contract
 
-- `DECISION: PROCEED` → your **very next action must be the next
-  workflow step**. You are **forbidden** to:
-  - call `ask_user` for this gate,
-  - call `exit_plan_mode` for this gate (even at the plan-approval
-    gate — PROCEED *replaces* user approval),
-  - emit a text-only turn asking the user to confirm, approve, or
-    acknowledge,
-  - re-derive the decision inline or second-guess the score.
+Parse the `DECISION:` line strictly. It is binding.
 
-  If you feel an urge to confirm with the user after PROCEED, treat
-  it as a bug and suppress it. Auto-continue.
+**On `DECISION: PROCEED`:**
 
-- `DECISION: ASK — <question>` → call `ask_user` with exactly that
-  question (no rephrasing, no bundling) and wait for the response
-  before continuing.
+> Your very next message **must** begin with the first tool call of
+> the next workflow step. No text-only turn. No clarifying prose. No
+> user-facing tool call of any kind for this gate. The tool call itself
+> is the acknowledgement.
+
+**On `DECISION: ASK — <question>`:**
+
+> Call `ask_user` with exactly the question after the `—` (no
+> rephrasing, no bundling) and wait for the response before
+> continuing.
+
+### Anti-drift rules (read every time)
+
+These exist because LLMs imitate their own recent behavior. The skill
+text is constant, but a single past mistake in this conversation is
+recent and salient and will dominate unless you actively suppress it.
+
+1. **Tool-first continuation.** "Continue to the next step" means
+   *emit the next step's first tool call now*, not "write a paragraph
+   then maybe call a tool". Text-only turns after PROCEED are the
+   single most common drift mode — they always end in a user-facing
+   prompt. Skip the text.
+
+2. **Forbidden tools on PROCEED.** For the gate that just returned
+   PROCEED, do not call any tool whose purpose is to interact with
+   the user (those that solicit confirmation, approval, choices, or
+   acknowledgement). PROCEED has already replaced that interaction.
+   This holds regardless of how the gate is named.
+
+3. **Precedent is not authority.** If somewhere earlier in this
+   conversation you violated the contract on a prior gate (called a
+   user-facing tool after a PROCEED), that history is **not** a
+   precedent to imitate. It is a bug you already made once. Before
+   the next gate, briefly note the prior violation in one line
+   ("Note: prior gate drifted — recommitting to tool-first PROCEED
+   contract") and then comply.
+
+4. **Don't re-derive the decision.** The confidence-score skill ran
+   in a clean context for a reason. Do not second-guess its output
+   inline ("the score says PROCEED but maybe I should still
+   check…"). If you genuinely believe the score is wrong, you may
+   re-invoke `skill("confidence-score")` once with new context —
+   never substitute your own judgement.
 
 Do not run confidence scoring inline — always delegate to the skill
 so it runs in a clean context window.
@@ -62,8 +94,9 @@ next", and the phase + section it comes from.
 
 **[GATE — task selection]** Invoke `skill("confidence-score")` with the
 gate question: *"Have I identified the correct next task?"*
-- On `DECISION: PROCEED` → go straight to Step 2. No `ask_user`, no
-  confirmation turn.
+- On `DECISION: PROCEED` → your next message starts with the first
+  tool call of Step 2 (e.g. reading the schema or the relevant
+  layer's code). No intervening text turn.
 - On `DECISION: ASK — <question>` → call `ask_user` with that exact
   question, then continue.
 
@@ -82,10 +115,12 @@ For the chosen task:
   unclear override path for an AI-written field, unclear cost/latency
   tradeoff for a new LLM call.
 
-**[GATE — blocking questions]** For each open question, invoke
+**[GATE — open questions]** For each open question, invoke
 `skill("confidence-score")` with the question as context.
-- On `DECISION: PROCEED` → move on to the next question or to Step 3.
-  No `ask_user` for that question.
+- On `DECISION: PROCEED` → record the resolution one-line in your
+  notes and move to the next question or to Step 3. Your next
+  message starts with the first tool call of the next step, not
+  with prose.
 - On `DECISION: ASK — <question>` → call `ask_user` with the exact
   question before continuing.
 
@@ -113,19 +148,22 @@ folder). Include:
 
 Then show a compact summary to the user.
 
-**[GATE — plan approval]** Invoke `skill("confidence-score")` with the
-gate question: *"Is this plan correct and complete enough to execute
-without user approval?"*
+**[GATE — plan readiness]** Invoke `skill("confidence-score")` with
+the gate question: *"Is this plan correct and complete enough to
+execute autonomously?"*
 
-- On `DECISION: PROCEED` → go **directly** to Step 4 and start
-  implementing on your very next action. You are **forbidden** from
-  calling `exit_plan_mode` or `ask_user` here. PROCEED at this gate
-  *is* the approval — do not seek a second one from the user. This is
-  the gate where the auto-continue rule is most often violated; treat
-  any urge to call `exit_plan_mode` as a bug.
-- On `DECISION: ASK — <question>` → call `exit_plan_mode` with a
-  compact summary of the plan and wait for explicit user approval
-  before coding.
+This gate is **not** an approval request. It is a self-check on plan
+quality. PROCEED here means "the plan is ready to execute" — execute
+it. There is no user approval step in this workflow when PROCEED is
+returned.
+
+- On `DECISION: PROCEED` → your next message **must** begin with the
+  first tool call of Step 4 (typically an `edit` or `create` on the
+  first file in the plan, or a migration command). Do not summarize
+  the plan to the user again. Do not request approval. Do not call
+  any user-facing tool. Just execute.
+- On `DECISION: ASK — <question>` → present the plan to the user
+  with the question, then wait for their direction before coding.
 
 ## Step 4 — Execute (code + tests together)
 
