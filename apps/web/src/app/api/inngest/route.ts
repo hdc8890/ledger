@@ -1,6 +1,6 @@
 import { serve } from 'inngest/next';
 import { inngest } from '@/lib/inngest';
-import { itemSync, balancesRefresh, investmentsRefresh } from '@/inngest';
+import * as inngestFunctions from '@/inngest';
 
 // ---------------------------------------------------------------------------
 // /api/inngest
@@ -12,5 +12,5 @@ import { itemSync, balancesRefresh, investmentsRefresh } from '@/inngest';
 // ---------------------------------------------------------------------------
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [itemSync, balancesRefresh, investmentsRefresh],
+  functions: Object.values(inngestFunctions),
 });
