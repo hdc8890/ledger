@@ -15,63 +15,59 @@ Authority and doc rules come from `AGENTS.md`. Re-read its "Doc Map" and
 
 ## Decision Gates
 
-At each step marked **[GATE]** below, invoke the `confidence-score`
-skill by calling `skill("confidence-score")` and passing it the gate
-question as context. The skill returns a `[Confidence: N/10]` block
-followed by a single `DECISION:` line.
+At each step marked **[GATE]** below, do a quick **inline** confidence
+check. Do not call out to a separate scoring skill — scoring is part
+of your reasoning at that gate, not a sub-agent.
 
-### The binding contract
+### How to score (inline, in your head)
 
-Parse the `DECISION:` line strictly. It is binding.
+Weigh these factors and pick a number 1–10:
 
-**On `DECISION: PROCEED`:**
+**Lower (push toward asking the user):**
+- Docs ambiguous, missing, or contradictory
+- Two+ viable approaches with materially different tradeoffs
+- Decision affects user-owned data, irreversible schema, or data loss
+- New LLM call with estimated per-request cost > $0.01
+- Original prompt gives no signal on direction
 
-> Your very next message **must** begin with the first tool call of
-> the next workflow step. No text-only turn. No clarifying prose. No
-> user-facing tool call of any kind for this gate. The tool call itself
-> is the acknowledgement.
+**Higher (push toward continuing on your own):**
+- `docs/STATUS.md` unambiguously identifies the task
+- The phase plan already answers the design question
+- Existing code establishes a clear pattern to follow
+- Low-risk, easily reversible
+- Tradeoff is cosmetic or implementation-detail only
 
-**On `DECISION: ASK — <question>`:**
+### How to act on the score
 
-> Call `ask_user` with exactly the question after the `—` (no
-> rephrasing, no bundling) and wait for the response before
-> continuing.
+Emit one short line at the gate:
 
-### Anti-drift rules (read every time)
+```
+[Confidence: N/10 — <one-line rationale>]
+```
 
-These exist because LLMs imitate their own recent behavior. The skill
-text is constant, but a single past mistake in this conversation is
-recent and salient and will dominate unless you actively suppress it.
+**Then, in the same response:**
 
-1. **Tool-first continuation.** "Continue to the next step" means
-   *emit the next step's first tool call now*, not "write a paragraph
-   then maybe call a tool". Text-only turns after PROCEED are the
-   single most common drift mode — they always end in a user-facing
-   prompt. Skip the text.
+- **If N ≥ 7** — continue to the next workflow step by emitting its
+  first tool call **in the same response**, immediately after the
+  confidence line. No text-only turn between scoring and acting. No
+  user-facing tool (`ask_user`, `exit_plan_mode`, etc.) for this
+  gate. The tool call itself is the acknowledgement.
 
-2. **Forbidden tools on PROCEED.** For the gate that just returned
-   PROCEED, do not call any tool whose purpose is to interact with
-   the user (those that solicit confirmation, approval, choices, or
-   acknowledgement). PROCEED has already replaced that interaction.
-   This holds regardless of how the gate is named.
+- **If N < 7** — call `ask_user` with a single focused question
+  (one question, no bundling) and wait for the response.
 
-3. **Precedent is not authority.** If somewhere earlier in this
-   conversation you violated the contract on a prior gate (called a
-   user-facing tool after a PROCEED), that history is **not** a
-   precedent to imitate. It is a bug you already made once. Before
-   the next gate, briefly note the prior violation in one line
-   ("Note: prior gate drifted — recommitting to tool-first PROCEED
-   contract") and then comply.
+That's the whole protocol. There is no `DECISION:` line, no
+"returning control", no skill boundary. Score and act in one turn.
 
-4. **Don't re-derive the decision.** The confidence-score skill ran
-   in a clean context for a reason. Do not second-guess its output
-   inline ("the score says PROCEED but maybe I should still
-   check…"). If you genuinely believe the score is wrong, you may
-   re-invoke `skill("confidence-score")` once with new context —
-   never substitute your own judgement.
+### Why inline (and not a separate skill)
 
-Do not run confidence scoring inline — always delegate to the skill
-so it runs in a clean context window.
+An earlier version of this workflow delegated scoring to a
+`confidence-score` skill. That created a skill-result boundary
+between scoring and acting, and the model would routinely stop or
+ask the user at that boundary even when the score said proceed. The
+boundary itself was the bug. Keep scoring inline. If a future you
+is tempted to factor scoring out again, don't — that path is known
+broken.
 
 ---
 
@@ -92,13 +88,11 @@ blocker that affects it, surface the blocker before proceeding.
 Output to the user: a 2–4 line summary of "what" and "why this is
 next", and the phase + section it comes from.
 
-**[GATE — task selection]** Invoke `skill("confidence-score")` with the
-gate question: *"Have I identified the correct next task?"*
-- On `DECISION: PROCEED` → your next message starts with the first
-  tool call of Step 2 (e.g. reading the schema or the relevant
-  layer's code). No intervening text turn.
-- On `DECISION: ASK — <question>` → call `ask_user` with that exact
-  question, then continue.
+**[GATE — task selection]** Score inline against the question: *"Have
+I identified the correct next task?"* Emit `[Confidence: N/10 — …]`
+and in the same response either proceed to the first tool call of
+Step 2 (typically reading the schema or relevant layer code) if
+N ≥ 7, or call `ask_user` with a single focused question if N < 7.
 
 ## Step 2 — Build context and clarify
 
@@ -115,16 +109,11 @@ For the chosen task:
   unclear override path for an AI-written field, unclear cost/latency
   tradeoff for a new LLM call.
 
-**[GATE — open questions]** For each open question, invoke
-`skill("confidence-score")` with the question as context.
-- On `DECISION: PROCEED` → record the resolution one-line in your
-  notes and move to the next question or to Step 3. Your next
-  message starts with the first tool call of the next step, not
-  with prose.
-- On `DECISION: ASK — <question>` → call `ask_user` with the exact
-  question before continuing.
-
-Do not invent answers to low-confidence questions.
+**[GATE — open questions]** For each open question, score inline.
+Emit `[Confidence: N/10 — …]` and in the same response either record
+the resolution and move on (if N ≥ 7) or call `ask_user` with that
+single question (if N < 7). Do not invent answers to low-confidence
+questions.
 
 ## Step 3 — Create an execution plan
 
@@ -148,22 +137,21 @@ folder). Include:
 
 Then show a compact summary to the user.
 
-**[GATE — plan readiness]** Invoke `skill("confidence-score")` with
-the gate question: *"Is this plan correct and complete enough to
-execute autonomously?"*
+**[GATE — plan readiness]** Score inline against the question: *"Is
+this plan correct and complete enough to execute autonomously?"*
 
-This gate is **not** an approval request. It is a self-check on plan
-quality. PROCEED here means "the plan is ready to execute" — execute
-it. There is no user approval step in this workflow when PROCEED is
-returned.
+This is a self-check on plan quality, not an approval request. If
+N ≥ 7 the plan is ready — execute it. There is no user approval step
+in this workflow at this score.
 
-- On `DECISION: PROCEED` → your next message **must** begin with the
-  first tool call of Step 4 (typically an `edit` or `create` on the
-  first file in the plan, or a migration command). Do not summarize
-  the plan to the user again. Do not request approval. Do not call
-  any user-facing tool. Just execute.
-- On `DECISION: ASK — <question>` → present the plan to the user
-  with the question, then wait for their direction before coding.
+Emit `[Confidence: N/10 — …]` and in the same response either:
+- (N ≥ 7) begin Step 4 immediately by emitting the first tool call of
+  the implementation (typically an `edit`/`create` on the first file
+  in the plan, or a migration command). Do not summarize the plan
+  again, do not request approval, do not call any user-facing tool.
+- (N < 7) present the plan to the user with a single focused
+  question (via `exit_plan_mode` or `ask_user`) and wait for their
+  direction before coding.
 
 ## Step 4 — Execute (code + tests together)
 
