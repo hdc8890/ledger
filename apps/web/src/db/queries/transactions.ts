@@ -101,6 +101,51 @@ export async function updateTransactionCategory(
 }
 
 /**
+ * Fetch active transactions that need category enrichment.
+ * "Needs enrichment" means categorySource is NULL (no Plaid category) or 'plaid'
+ * (we can improve on Plaid's generic categorization with deterministic rules or LLM).
+ * Skips rows already tagged by user/rule/ai so the job is idempotent.
+ */
+export async function getTransactionsNeedingCategorization(
+  userId: UserId,
+  options: { limit?: number; offset?: number } = {},
+): Promise<TransactionRow[]> {
+  const { limit = 100, offset = 0 } = options;
+  return db
+    .select()
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        isNull(transactions.deletedAt),
+        sql`(${transactions.categorySource} IS NULL OR ${transactions.categorySource} = 'plaid')`,
+      ),
+    )
+    .orderBy(transactions.postedAt)
+    .limit(limit)
+    .offset(offset);
+}
+
+/**
+ * Update category, source, and confidence for a transaction.
+ * Used by the Phase 4 enrichment pipeline (category inference).
+ * Accepts a confidence parameter unlike the legacy updateTransactionCategory.
+ */
+export async function updateTransactionCategoryEnriched(
+  id: TransactionId,
+  category: string,
+  source: 'rule' | 'ai',
+  confidence: number,
+): Promise<TransactionRow | undefined> {
+  const rows = await db
+    .update(transactions)
+    .set({ category, categorySource: source, categoryConfidence: confidence, updatedAt: new Date() })
+    .where(eq(transactions.id, id))
+    .returning();
+  return rows[0];
+}
+
+/**
  * Update the normalized merchant name for a transaction.
  * Called by the Phase 4 enrichment pipeline after merchant normalization.
  */

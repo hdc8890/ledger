@@ -434,6 +434,8 @@ export const categorizationRules = pgTable(
     setCategory: text('set_category').notNull(),
     /** Whether the rule is currently active. Soft-disabled rather than deleted. */
     active: boolean('active').notNull().default(true),
+    /** Higher number = evaluated first. Default 0. */
+    priority: integer('priority').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -25,7 +25,10 @@ const BATCH_SIZE = 50;
 
 export type EnrichTransactionsContext = {
   event: { data: { userId: string } };
-  step: { run: <T>(id: string, fn: () => Promise<T>) => Promise<T> };
+  step: {
+    run: <T>(id: string, fn: () => Promise<T>) => Promise<T>;
+    sendEvent: (id: string, event: { name: string; data: Record<string, unknown> }) => Promise<unknown>;
+  };
 };
 
 export type EnrichTransactionsResult = {
@@ -85,6 +88,15 @@ export async function handleEnrichTransactions(
 
     if (batchResult.done) break;
   }
+
+  // Enqueue category inference now that merchant names are normalized.
+  // This creates the pipeline: item-sync → normalize → categorize.
+  // Emitting here (rather than from item-sync) ensures merchant_normalized is
+  // populated before the categorization job fetches transactions.
+  await step.sendEvent('enqueue-category-inference', {
+    name: 'enrichment/transactions.categorize',
+    data: { userId },
+  });
 
   return { userId, processed: totalProcessed, batches: batchIndex };
 }

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { categorizationRules } from '@/db/schema';
 import type { CategorizationRuleId, UserId } from '@/shared/types';
@@ -30,6 +30,21 @@ export async function getCategorizationRulesByUserId(
     .select()
     .from(categorizationRules)
     .where(eq(categorizationRules.userId, userId));
+}
+
+/**
+ * Fetch all active categorization rules for a user, sorted by priority descending.
+ * Used by the enrichment pipeline — returns only active rules so disabled rules
+ * are not applied.
+ */
+export async function getActiveCategorizationRulesByUserId(
+  userId: UserId,
+): Promise<CategorizationRuleRow[]> {
+  return db
+    .select()
+    .from(categorizationRules)
+    .where(and(eq(categorizationRules.userId, userId), eq(categorizationRules.active, true)))
+    .orderBy(desc(categorizationRules.priority));
 }
 
 /**
