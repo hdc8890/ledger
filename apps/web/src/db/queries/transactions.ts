@@ -1,4 +1,4 @@
-import { and, eq, gte, gt, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, eq, gte, gt, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { transactions } from '@/db/schema';
 import type { AccountId, TransactionId, UserId } from '@/shared/types';
@@ -291,4 +291,35 @@ export async function aggregateTransactions(
     totalCents: BigInt(r.total ?? '0'),
     count: r.count,
   }));
+}
+
+/**
+ * Reset enrichment state for a user's transactions, enabling the enrichment
+ * pipeline to re-process them from scratch.
+ *
+ * Only affects rows whose categorySource is 'ai' or 'rule'. Rows tagged by
+ * the user (categorySource = 'user') are intentionally preserved — manual
+ * overrides always win.
+ *
+ * Sets:
+ *   merchant_normalized = NULL   → triggers re-normalization
+ *   category_source     = NULL   → triggers re-categorization
+ *   category_confidence = NULL
+ *
+ * Returns the number of rows reset.
+ */
+export async function resetTransactionEnrichmentForUser(userId: UserId): Promise<number> {
+  const rows = await db
+    .update(transactions)
+    .set({ merchantNormalized: null, categorySource: null, categoryConfidence: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        isNull(transactions.deletedAt),
+        inArray(transactions.categorySource, ['ai', 'rule']),
+      ),
+    )
+    .returning({ id: transactions.id });
+
+  return rows.length;
 }
