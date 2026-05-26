@@ -14,11 +14,53 @@ import { insertChatMessage } from '@/db/queries/chat-messages';
 import { logLlmCall } from '@/db/queries/llm-usage';
 import { checkAndConsumeRateLimit } from '@/db/queries/rate-limits';
 import { buildTools } from '@/ai/tools/registry';
+import { retrieveMemories } from '@/ai/memory';
+import type { MemoryRow } from '@/db/queries/memories';
 import type { ChatSessionId, UserId } from '@/shared/types';
 
 const MODEL = 'claude-sonnet-4-5';
 /** Cheap model used only for generating short session titles (fire-and-forget). */
 const TITLE_MODEL = 'claude-haiku-4-5';
+
+/**
+ * Approximate token count using 4 chars-per-token heuristic.
+ * Used to enforce the ~800-token cap on injected memory context.
+ */
+const APPROX_CHARS_PER_TOKEN = 4;
+const MEMORY_TOKEN_CAP = 800;
+const MEMORY_CHAR_CAP = MEMORY_TOKEN_CAP * APPROX_CHARS_PER_TOKEN; // 3200
+/** Truncate a single memory's text to this length to keep entries readable. */
+const MEMORY_TEXT_MAX_CHARS = 250;
+
+/**
+ * Format a list of memories into a `### Relevant Context` system-prompt block.
+ *
+ * Rules:
+ * - Returns empty string when the list is empty (no section is injected).
+ * - Truncates individual memory text at MEMORY_TEXT_MAX_CHARS.
+ * - Stops adding entries once the total character count reaches MEMORY_CHAR_CAP
+ *   (~800 tokens) to bound prompt cost.
+ */
+export function buildMemoryContext(memories: readonly MemoryRow[]): string {
+  if (memories.length === 0) return '';
+
+  const lines: string[] = [];
+  let charCount = 0;
+
+  for (const m of memories) {
+    const text = m.text.length > MEMORY_TEXT_MAX_CHARS
+      ? `${m.text.slice(0, MEMORY_TEXT_MAX_CHARS)}…`
+      : m.text;
+    const line = `- [${m.kind}] ${text}`;
+    if (charCount + line.length > MEMORY_CHAR_CAP) break;
+    lines.push(line);
+    charCount += line.length;
+  }
+
+  if (lines.length === 0) return '';
+
+  return `\n\n### Relevant Context\nThe following preferences and rules have been remembered about this user:\n${lines.join('\n')}\nWhen relevant, cite these with "Based on your preference, …" or "Based on your household rule, …".`;
+}
 
 // ---------------------------------------------------------------------------
 // POST /api/chat
@@ -41,7 +83,7 @@ const ChatRequestBody = z.object({
   messages: z.array(z.unknown()),
 });
 
-function buildSystemPrompt(currentDate: string): string {
+function buildSystemPrompt(currentDate: string, memoryContext = ''): string {
   return `You are a personal AI financial assistant with access to the user's financial data.
 
 Today's date: ${currentDate}
@@ -54,7 +96,7 @@ Guidelines:
 - Be concise, accurate, and honest about what you do and don't know.
 - Write tools (update_asset, tag_transaction, create_rule_draft) return proposals that the user must approve. Always present the proposal and explain what will change — never imply the change has already happened.
 
-You have access to the user's accounts, transactions, assets, and liabilities.`;
+You have access to the user's accounts, transactions, assets, and liabilities.${memoryContext}`;
 }
 
 /**
@@ -175,12 +217,28 @@ export async function POST(request: Request): Promise<Response> {
   // 7. Convert UIMessage[] → ModelMessage[] for streamText.
   const modelMessages = await convertToModelMessages(uiMessages);
 
-  // 8. Stream response.
+  // 8. Retrieve relevant memories to inject into the system prompt.
+  //    Failures are non-fatal — chat must work even if the embedding API is down.
+  let memoryContext = '';
+  const userMessageText = (() => {
+    const textPart = lastUserMessage?.parts.find((p) => (p as { type: string }).type === 'text');
+    return textPart != null ? (textPart as { type: 'text'; text: string }).text : '';
+  })();
+  if (userMessageText) {
+    try {
+      const memories = await retrieveMemories(userId, userMessageText, 10, 0.3);
+      memoryContext = buildMemoryContext(memories);
+    } catch (err) {
+      console.error('[chat/route] memory retrieval error (continuing without context):', err);
+    }
+  }
+
+  // 9. Stream response.
   const streamStart = Date.now();
   try {
     const result = streamText({
       model: anthropic(MODEL),
-      system: buildSystemPrompt(new Date().toISOString().split('T')[0] ?? ''),
+      system: buildSystemPrompt(new Date().toISOString().split('T')[0] ?? '', memoryContext),
       messages: modelMessages,
       tools: buildTools({ userId }),
       stopWhen: stepCountIs(10),

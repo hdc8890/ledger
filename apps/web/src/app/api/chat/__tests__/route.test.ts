@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const {
   mockAuth, mockFindUser, mockGetSession, mockCreateSession, mockInsertMessage,
   mockTouchSession, mockStreamText, mockConvertMessages, mockLogLlmCall,
-  mockUpdateTitle, mockGenerateText, mockCheckRateLimit,
+  mockUpdateTitle, mockGenerateText, mockCheckRateLimit, mockRetrieveMemories,
 } = vi.hoisted(() => {
   const mockAuth = vi.fn();
   const mockFindUser = vi.fn();
@@ -20,10 +20,12 @@ const {
   const mockUpdateTitle = vi.fn();
   const mockGenerateText = vi.fn();
   const mockCheckRateLimit = vi.fn();
+  const mockRetrieveMemories = vi.fn();
   return {
     mockAuth, mockFindUser, mockGetSession, mockCreateSession,
     mockInsertMessage, mockTouchSession, mockStreamText, mockConvertMessages,
     mockLogLlmCall, mockUpdateTitle, mockGenerateText, mockCheckRateLimit,
+    mockRetrieveMemories,
   };
 });
 
@@ -43,6 +45,9 @@ vi.mock('@/db/queries/rate-limits', () => ({
   checkAndConsumeRateLimit: mockCheckRateLimit,
 }));
 vi.mock('@/ai/tools/registry', () => ({ buildTools: vi.fn(() => ({})) }));
+vi.mock('@/ai/memory', () => ({
+  retrieveMemories: mockRetrieveMemories,
+}));
 vi.mock('ai', () => ({
   streamText: mockStreamText,
   generateText: mockGenerateText,
@@ -53,7 +58,8 @@ vi.mock('@ai-sdk/anthropic', () => ({
   anthropic: vi.fn(() => 'mock-model'),
 }));
 
-import { POST } from '../route';
+import { POST, buildMemoryContext } from '../route';
+import type { MemoryRow } from '@/db/queries/memories';
 
 const USER = { id: 'user-uuid', clerkId: 'clerk_abc' };
 const SESSION_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -77,6 +83,8 @@ describe('POST /api/chat', () => {
     // Default: generateText returns a valid response so fire-and-forget title
     // generation doesn't produce uncaught destructuring errors in unrelated tests.
     mockGenerateText.mockResolvedValue({ text: 'Test Title' });
+    // Default: no memories — avoids memory injection in unrelated tests.
+    mockRetrieveMemories.mockResolvedValue([]);
   });
 
   it('returns 401 when unauthenticated', async () => {
@@ -307,5 +315,142 @@ describe('POST /api/chat', () => {
     expect(body.error).toBe('Too many requests');
     expect(body.retryAfterSeconds).toBe(3600);
     expect(mockStreamText).not.toHaveBeenCalled();
+  });
+
+  it('injects Relevant Context into the system prompt when memories exist', async () => {
+    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
+    mockFindUser.mockResolvedValue(USER);
+    mockGetSession.mockResolvedValue(SESSION);
+    mockInsertMessage.mockResolvedValue({});
+    mockRetrieveMemories.mockResolvedValue([
+      {
+        id: 'mem-1',
+        userId: 'user-uuid',
+        kind: 'preference',
+        text: 'Costco should be Groceries',
+        embedding: null,
+        metadata: null,
+        confidence: 1.0,
+        expiresAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } satisfies MemoryRow,
+    ]);
+    const mockResponse = new Response('stream', { status: 200 });
+    mockStreamText.mockReturnValue({ toUIMessageStreamResponse: () => mockResponse });
+
+    await POST(makeRequest({
+      id: SESSION_ID,
+      messages: [{ id: 'msg-1', role: 'user', parts: [{ type: 'text', text: 'What did I spend on groceries?' }] }],
+    }));
+
+    expect(mockStreamText).toHaveBeenCalledOnce();
+    const callArg = mockStreamText.mock.calls[0]?.[0] as { system?: string };
+    expect(callArg.system).toContain('### Relevant Context');
+    expect(callArg.system).toContain('Costco should be Groceries');
+  });
+
+  it('does not inject Relevant Context when no memories are returned', async () => {
+    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
+    mockFindUser.mockResolvedValue(USER);
+    mockGetSession.mockResolvedValue(SESSION);
+    mockInsertMessage.mockResolvedValue({});
+    mockRetrieveMemories.mockResolvedValue([]); // no memories
+    const mockResponse = new Response('stream', { status: 200 });
+    mockStreamText.mockReturnValue({ toUIMessageStreamResponse: () => mockResponse });
+
+    await POST(makeRequest({
+      id: SESSION_ID,
+      messages: [{ id: 'msg-1', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }],
+    }));
+
+    const callArg = mockStreamText.mock.calls[0]?.[0] as { system?: string };
+    expect(callArg.system).not.toContain('### Relevant Context');
+  });
+
+  it('succeeds without memory context when retrieveMemories throws', async () => {
+    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
+    mockFindUser.mockResolvedValue(USER);
+    mockGetSession.mockResolvedValue(SESSION);
+    mockInsertMessage.mockResolvedValue({});
+    mockRetrieveMemories.mockRejectedValueOnce(new Error('OpenAI embedding API down'));
+    const mockResponse = new Response('stream', { status: 200 });
+    mockStreamText.mockReturnValue({ toUIMessageStreamResponse: () => mockResponse });
+
+    const res = await POST(makeRequest({
+      id: SESSION_ID,
+      messages: [{ id: 'msg-1', role: 'user', parts: [{ type: 'text', text: 'Hello' }] }],
+    }));
+
+    // Chat must succeed even if memory retrieval fails.
+    expect(res.status).toBe(200);
+    expect(mockStreamText).toHaveBeenCalledOnce();
+    const callArg = mockStreamText.mock.calls[0]?.[0] as { system?: string };
+    expect(callArg.system).not.toContain('### Relevant Context');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildMemoryContext unit tests
+// ---------------------------------------------------------------------------
+describe('buildMemoryContext', () => {
+  function makeMemory(overrides: Partial<MemoryRow> = {}): MemoryRow {
+    return {
+      id: 'mem-1',
+      userId: 'user-uuid',
+      kind: 'preference',
+      text: 'Costco should be Groceries',
+      embedding: null,
+      metadata: null,
+      confidence: 1.0,
+      expiresAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  it('returns empty string for an empty list', () => {
+    expect(buildMemoryContext([])).toBe('');
+  });
+
+  it('includes ### Relevant Context heading and memory text', () => {
+    const result = buildMemoryContext([makeMemory()]);
+    expect(result).toContain('### Relevant Context');
+    expect(result).toContain('Costco should be Groceries');
+    expect(result).toContain('[preference]');
+  });
+
+  it('includes the kind label for each memory', () => {
+    const result = buildMemoryContext([
+      makeMemory({ kind: 'household_rule', text: 'Rent is always fixed' }),
+    ]);
+    expect(result).toContain('[household_rule]');
+    expect(result).toContain('Rent is always fixed');
+  });
+
+  it('truncates memory text longer than 250 characters', () => {
+    const longText = 'A'.repeat(300);
+    const result = buildMemoryContext([makeMemory({ text: longText })]);
+    expect(result).toContain('A'.repeat(250) + '…');
+    expect(result).not.toContain('A'.repeat(251) + 'A');
+  });
+
+  it('respects the ~3200 character cap by stopping early', () => {
+    // Each line is ~270 chars (kind label ~15 + text 250 + "… " ≈ 270).
+    // Fill with enough memories to exceed the cap.
+    const memories = Array.from({ length: 15 }, (_, i) =>
+      makeMemory({ id: `mem-${i}`, text: 'B'.repeat(250) }),
+    );
+    const result = buildMemoryContext(memories);
+    expect(result.length).toBeLessThanOrEqual(3400); // cap + small header overhead
+    // Not all 15 should appear if we hit the cap.
+    const lineCount = (result.match(/^- \[/gm) ?? []).length;
+    expect(lineCount).toBeLessThan(15);
+  });
+
+  it('includes citation instruction', () => {
+    const result = buildMemoryContext([makeMemory()]);
+    expect(result).toContain('Based on your preference');
   });
 });
