@@ -30,7 +30,10 @@ const BATCH_SIZE = 50;
 
 export type CategorizeTransactionsContext = {
   event: { data: { userId: string } };
-  step: { run: <T>(id: string, fn: () => Promise<T>) => Promise<T> };
+  step: {
+    run: <T>(id: string, fn: () => Promise<T>) => Promise<T>;
+    sendEvent: (id: string, event: { name: string; data: Record<string, unknown> }) => Promise<unknown>;
+  };
 };
 
 export type CategorizeTransactionsResult = {
@@ -94,6 +97,13 @@ export async function handleCategorizeTransactions(
 
     if (batchResult.done) break;
   }
+
+  // Chain to transfer detection now that categories are resolved.
+  // This completes the enrichment pipeline: normalize → categorize → detect-transfers.
+  await step.sendEvent('enqueue-transfer-detection', {
+    name: 'enrichment/transactions.detect-transfers',
+    data: { userId },
+  });
 
   return { userId, processed: totalProcessed, batches: batchIndex };
 }
