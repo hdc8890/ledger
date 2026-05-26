@@ -303,6 +303,7 @@ export async function aggregateTransactions(
  *
  * Sets:
  *   merchant_normalized = NULL   → triggers re-normalization
+ *   category            = NULL   → clears stale value to avoid rule predicate mismatches
  *   category_source     = NULL   → triggers re-categorization
  *   category_confidence = NULL
  *
@@ -311,7 +312,7 @@ export async function aggregateTransactions(
 export async function resetTransactionEnrichmentForUser(userId: UserId): Promise<number> {
   const rows = await db
     .update(transactions)
-    .set({ merchantNormalized: null, categorySource: null, categoryConfidence: null, updatedAt: new Date() })
+    .set({ merchantNormalized: null, category: null, categorySource: null, categoryConfidence: null, updatedAt: new Date() })
     .where(
       and(
         eq(transactions.userId, userId),
