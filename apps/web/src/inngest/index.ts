@@ -10,3 +10,4 @@ export { enrichTransactions } from './functions/enrich-transactions';
 export { categorizeTransactions } from './functions/categorize-transactions';
 export { detectTransfers } from './functions/detect-transfers';
 export { detectRecurring } from './functions/detect-recurring';
+export { backfillEnrichment } from './functions/backfill-enrichment';
