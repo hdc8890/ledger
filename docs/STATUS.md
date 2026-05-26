@@ -8,7 +8,7 @@ Updated at the start/end of each phase or significant milestone.
 ## Current State
 
 **Stage:** Active development — Phase 4 in progress  
-**Active Phase:** Phase 4 — AI Enrichment (Tasks 1–2 ✅)  
+**Active Phase:** Phase 4 — AI Enrichment (Tasks 1–4 ✅)  
 **Last Completed:** Phase 3 — AI Chat MVP  
 **Next Phase:** —
 
@@ -21,7 +21,7 @@ Updated at the start/end of each phase or significant milestone.
 | 1 | Foundation | ✅ Done | All 6 tasks complete |
 | 2 | Dashboard MVP | ✅ Done | All 7 tasks complete — 4 dashboards, empty states, skeletons, RSC-first, coverage ≥70% |
 | 3 | AI Chat MVP | ✅ Done | All 8 tasks complete — streaming chat, 10 tools, write-tool safety, conversation persistence, cost logging, rate limiting |
-| 4 | AI Enrichment | 🔄 In progress | Tasks 1–3 complete — merchant normalization, category inference, transfer detection (heuristic pairing, transfer_links table, pipeline chained, manual unlink override path) |
+| 4 | AI Enrichment | 🔄 In progress | Tasks 1–4 complete — merchant normalization, category inference, transfer detection (heuristic pairing, transfer_links table, pipeline chained, manual unlink override path), recurring bill detection (heuristic clustering, recurring_series table, detect-recurring Inngest job, pipeline chained) |
 | 5 | Memory Layer | 🔲 Not started | Awaits Phase 3 |
 | 6 | Goal-Based Planning | 🔲 Not started | Awaits Phase 5 |
 
