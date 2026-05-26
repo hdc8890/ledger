@@ -460,6 +460,46 @@ export const chatRateLimits = pgTable('chat_rate_limits', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ---------------------------------------------------------------------------
+// Phase 4 — AI Enrichment tables
+// ---------------------------------------------------------------------------
+
+export const merchantAliasCreatedByEnum = pgEnum('merchant_alias_created_by', [
+  'seed',
+  'user',
+  'ai',
+]);
+
+// ---------------------------------------------------------------------------
+// merchant_aliases
+// Maps raw merchant strings (exact or /regex/ patterns) to canonical names.
+// Deterministic rules are checked first (highest priority first); an LLM
+// call is made only when no rule matches. AI results are cached here with
+// created_by='ai' so repeat calls are avoided.
+// This is a global table (no user_id FK) — aliases apply to all users.
+// ---------------------------------------------------------------------------
+export const merchantAliases = pgTable(
+  'merchant_aliases',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Raw merchant string to match. Wrap in forward-slashes to denote a regex pattern. */
+    rawPattern: text('raw_pattern').notNull(),
+    /** Canonical merchant name, e.g. "Amazon Prime". */
+    canonical: text('canonical').notNull(),
+    /** Optional category hint to seed Phase 4 Task 2 categorization. */
+    categoryHint: text('category_hint'),
+    /** Higher priority rules are checked first. Default 0. */
+    priority: integer('priority').notNull().default(0),
+    createdBy: merchantAliasCreatedByEnum('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('merchant_aliases_priority_idx').on(t.priority),
+    uniqueIndex('merchant_aliases_raw_pattern_uniq').on(t.rawPattern),
+  ],
+);
+
 // Append-only log of every LLM call. Persisted by the logLlmCall helper
 // (Phase 3 Task 7). Used for cost monitoring in Settings. No updated_at
 // because rows are immutable.

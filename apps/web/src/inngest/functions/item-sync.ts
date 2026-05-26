@@ -77,7 +77,10 @@ async function upsertPlaidAccount(
 
 export type ItemSyncContext = {
   event: { data: { itemId: string } };
-  step: { run: <T>(id: string, fn: () => Promise<T>) => Promise<T> };
+  step: {
+    run: <T>(id: string, fn: () => Promise<T>) => Promise<T>;
+    sendEvent: (id: string, events: { name: string; data: Record<string, unknown> } | { name: string; data: Record<string, unknown> }[]) => Promise<unknown>;
+  };
 };
 
 export type ItemSyncResult = {
@@ -165,10 +168,20 @@ export async function handleItemSync(ctx: ItemSyncContext): Promise<ItemSyncResu
     }
     await updatePlaidItemCursor(item.id as PlaidItemId, cursor, now);
 
-    return { added: totalAdded, modified: totalModified, removed: totalRemoved };
+    return { added: totalAdded, modified: totalModified, removed: totalRemoved, userId: item.userId };
   });
 
-  return { itemId, ...syncResult };
+  // Enqueue merchant normalization for any newly added/modified transactions.
+  // Only emit if there is work to do; the enrichment job is idempotent but
+  // skipping the event avoids unnecessary cold starts.
+  if (syncResult.added + syncResult.modified > 0) {
+    await step.sendEvent('enqueue-merchant-normalize', {
+      name: 'enrichment/transactions.normalize',
+      data: { userId: syncResult.userId },
+    });
+  }
+
+  return { itemId, added: syncResult.added, modified: syncResult.modified, removed: syncResult.removed };
 }
 
 // ---------------------------------------------------------------------------
