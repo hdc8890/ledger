@@ -502,6 +502,50 @@ export const merchantAliases = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// transfer_links
+// Explicit pairing of an outbound transaction (debit) with the corresponding
+// inbound transaction (credit) that together constitute an internal transfer
+// between the user's own accounts.
+//
+// Detection: heuristic — same user, opposite signs, |Δamount| < 1%,
+// |Δdate| ≤ 3 days, different accounts. Written by the Phase 4 Task 3
+// Inngest job; never written directly by the user.
+//
+// Both FKs cascade on delete so the link row disappears if either leg is
+// removed (e.g. Plaid marks a transaction removed in a future sync).
+// UNIQUE (out_txn_id, in_txn_id) makes upserts idempotent.
+//
+// transactions.is_transfer is set to true on both legs for fast query-time
+// exclusion without a join.
+// ---------------------------------------------------------------------------
+export const transferLinks = pgTable(
+  'transfer_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Debit leg: amountCents > 0 (money leaving the account). */
+    outTxnId: uuid('out_txn_id')
+      .notNull()
+      .references(() => transactions.id, { onDelete: 'cascade' }),
+    /** Credit leg: amountCents < 0 (money entering the account). */
+    inTxnId: uuid('in_txn_id')
+      .notNull()
+      .references(() => transactions.id, { onDelete: 'cascade' }),
+    /** 0–1 pairing confidence from the heuristic algorithm. */
+    confidence: real('confidence').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('transfer_links_pair_uniq').on(t.outTxnId, t.inTxnId),
+    index('transfer_links_user_id_idx').on(t.userId),
+    index('transfer_links_out_txn_id_idx').on(t.outTxnId),
+    index('transfer_links_in_txn_id_idx').on(t.inTxnId),
+  ],
+);
+
 // Append-only log of every LLM call. Persisted by the logLlmCall helper
 // (Phase 3 Task 7). Used for cost monitoring in Settings. No updated_at
 // because rows are immutable.
