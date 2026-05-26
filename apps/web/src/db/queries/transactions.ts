@@ -1,6 +1,6 @@
-import { and, eq, gte, gt, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, gte, gt, inArray, isNull, lt, lte, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { transactions } from '@/db/schema';
+import { accounts, transactions } from '@/db/schema';
 import type { AccountId, TransactionId, UserId } from '@/shared/types';
 
 export type TransactionRow = typeof transactions.$inferSelect;
@@ -322,5 +322,60 @@ export async function resetTransactionEnrichmentForUser(userId: UserId): Promise
     )
     .returning({ id: transactions.id });
 
+  return rows.length;
+}
+
+// ---------------------------------------------------------------------------
+// Correction UI (Phase 4 Task 6)
+// ---------------------------------------------------------------------------
+
+export type TransactionListRow = TransactionRow & {
+  readonly accountName: string;
+};
+
+/**
+ * Fetch transactions for the correction UI list view.
+ * Joins with accounts to include the account name.
+ * Excludes soft-deleted rows; returns newest-first.
+ */
+export async function getTransactionsForListView(
+  userId: UserId,
+  options: { limit?: number; offset?: number } = {},
+): Promise<TransactionListRow[]> {
+  const { limit = 50, offset = 0 } = options;
+  return db
+    .select({ ...getTableColumns(transactions), accountName: accounts.name })
+    .from(transactions)
+    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+    .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt)))
+    .orderBy(desc(transactions.postedAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+/**
+ * Re-tag all ai/rule-sourced transactions from the same merchant to a new
+ * user-supplied category. Called inside the correctCategoryAction transaction.
+ * Only ai and rule sources are overwritten — user-set categories are never touched.
+ *
+ * Returns the count of rows updated.
+ */
+export async function retagSameMerchantTransactions(
+  userId: UserId,
+  merchantKey: string,
+  newCategory: string,
+): Promise<number> {
+  const rows = await db
+    .update(transactions)
+    .set({ category: newCategory, categorySource: 'user', categoryConfidence: 1.0, updatedAt: new Date() })
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        isNull(transactions.deletedAt),
+        sql`lower(coalesce(${transactions.merchantNormalized}, ${transactions.merchantRaw})) = lower(${merchantKey})`,
+        inArray(transactions.categorySource, ['ai', 'rule']),
+      ),
+    )
+    .returning({ id: transactions.id });
   return rows.length;
 }

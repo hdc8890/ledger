@@ -7,10 +7,10 @@ Updated at the start/end of each phase or significant milestone.
 
 ## Current State
 
-**Stage:** Active development — Phase 4 in progress  
-**Active Phase:** Phase 4 — AI Enrichment (Tasks 1–4 ✅)  
-**Last Completed:** Phase 3 — AI Chat MVP  
-**Next Phase:** —
+**Stage:** Active development — Phase 4 complete, Phase 5 next  
+**Active Phase:** Phase 5 — Memory Layer  
+**Last Completed:** Phase 4 — AI Enrichment  
+**Next Phase:** Phase 5 — Memory Layer
 
 ---
 
@@ -21,8 +21,8 @@ Updated at the start/end of each phase or significant milestone.
 | 1 | Foundation | ✅ Done | All 6 tasks complete |
 | 2 | Dashboard MVP | ✅ Done | All 7 tasks complete — 4 dashboards, empty states, skeletons, RSC-first, coverage ≥70% |
 | 3 | AI Chat MVP | ✅ Done | All 8 tasks complete — streaming chat, 10 tools, write-tool safety, conversation persistence, cost logging, rate limiting |
-| 4 | AI Enrichment | 🔄 In progress | Tasks 1–5 complete — merchant normalization, category inference, transfer detection (heuristic pairing, transfer_links table, pipeline chained, manual unlink override path), recurring bill detection (heuristic clustering, recurring_series table, detect-recurring Inngest job, pipeline chained), historical backfill (fan-out Inngest job, force-reset mode, rate-limit sleep, api/inngest route fixed to register all enrichment functions) |
-| 5 | Memory Layer | 🔲 Not started | Awaits Phase 3 |
+| 4 | AI Enrichment | ✅ Done | All 7 tasks complete — merchant normalization, category inference, transfer detection, recurring bill detection, historical backfill, correction UI (/transactions page + CategoryChip + correctCategoryAction + categorization rules + retag), dashboard query transfer exclusion confirmed |
+| 5 | Memory Layer | 🔄 In progress | Active phase |
 | 6 | Goal-Based Planning | 🔲 Not started | Awaits Phase 5 |
 
 Status legend: 🔲 Not started · 🔄 In progress · ✅ Done · 🚧 Blocked
