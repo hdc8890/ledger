@@ -546,6 +546,64 @@ export const transferLinks = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Phase 4 Task 4 — Recurring bill detection
+// ---------------------------------------------------------------------------
+
+export const recurringCadenceEnum = pgEnum('recurring_cadence', [
+  'weekly',
+  'biweekly',
+  'monthly',
+  'quarterly',
+  'annual',
+]);
+
+// ---------------------------------------------------------------------------
+// recurring_series
+// One row per (user, merchant_normalized, cadence) triple representing a
+// detected recurring payment pattern (subscriptions, utilities, etc.).
+//
+// Written by the detect-recurring Inngest job; never written by the user
+// directly. Upserted on (user_id, merchant_normalized, cadence) so
+// re-running the job is idempotent and keeps the row current.
+//
+// No FK to transactions — this is a derived aggregate, not a row link.
+// Cascades on user deletion.
+// ---------------------------------------------------------------------------
+export const recurringSeries = pgTable(
+  'recurring_series',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Cleaned merchant name from merchant_normalized (enrichment Task 1). */
+    merchantNormalized: text('merchant_normalized').notNull(),
+    cadence: recurringCadenceEnum('cadence').notNull(),
+    /** Median transaction amount for this series, in cents. */
+    expectedAmountCents: bigint('expected_amount_cents', { mode: 'bigint' }).notNull(),
+    /** Fractional tolerance around expectedAmountCents to still count as a match (default 0.10 = ±10%). */
+    amountTolerancePct: real('amount_tolerance_pct').notNull().default(0.1),
+    /** Next predicted posting date based on last_seen_at + cadence. Null when unknown. */
+    nextExpectedAt: date('next_expected_at'),
+    /** Most recent transaction date that matches this series. */
+    lastSeenAt: date('last_seen_at').notNull(),
+    /** 0–1 confidence score for the detected pattern. */
+    confidence: real('confidence').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('recurring_series_user_merchant_cadence_uniq').on(
+      t.userId,
+      t.merchantNormalized,
+      t.cadence,
+    ),
+    index('recurring_series_user_id_idx').on(t.userId),
+    index('recurring_series_next_expected_idx').on(t.userId, t.nextExpectedAt),
+  ],
+);
+
 // Append-only log of every LLM call. Persisted by the logLlmCall helper
 // (Phase 3 Task 7). Used for cost monitoring in Settings. No updated_at
 // because rows are immutable.

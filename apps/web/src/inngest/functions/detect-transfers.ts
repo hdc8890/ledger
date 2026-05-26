@@ -31,7 +31,10 @@ import type { UserId } from '@/shared/types';
 
 export type DetectTransfersContext = {
   event: { data: { userId: string } };
-  step: { run: <T>(id: string, fn: () => Promise<T>) => Promise<T> };
+  step: {
+    run: <T>(id: string, fn: () => Promise<T>) => Promise<T>;
+    sendEvent: (id: string, event: { name: string; data: Record<string, unknown> }) => Promise<unknown>;
+  };
 };
 
 export type DetectTransfersResult = {
@@ -91,6 +94,13 @@ export async function handleDetectTransfers(
     }
 
     return pairs.length;
+  });
+
+  // Chain to recurring bill detection now that transfers are resolved.
+  // This completes the enrichment pipeline: normalize → categorize → detect-transfers → detect-recurring.
+  await step.sendEvent('enqueue-recurring-detection', {
+    name: 'enrichment/transactions.detect-recurring',
+    data: { userId },
   });
 
   return { userId, pairsFound };
