@@ -46,6 +46,10 @@ import {
   handler as createGoalHandler,
   inputSchema as createGoalInput,
 } from './create-goal';
+import {
+  handler as proposePlanHandler,
+  inputSchema as proposePlanInput,
+} from './propose-plan';
 import type { ToolContext } from './context';
 
 /**
@@ -166,6 +170,13 @@ export function buildTools(ctx: ToolContext) {
         'Propose a new financial goal (e.g. "save for a car", "reduce dining spend", "accelerate mortgage"). Returns a proposal ID for the user to approve. Do not create the goal without presenting the approval card. Always include a human-readable name and the goal kind. Target amount and date are optional.',
       inputSchema: createGoalInput,
       execute: (input) => createGoalHandler(input, ctx),
+    }),
+
+    propose_plan: tool({
+      description:
+        'Generate a concrete spending plan to advance a financial goal. Reads 3 months of spend history, computes per-category monthly reduction targets, and returns a proposal for the user to approve. On approval, budget caps are created for the next N months. Always call this after create_goal when the user asks for a plan.',
+      inputSchema: proposePlanInput,
+      execute: (input) => proposePlanHandler(input, ctx),
     }),
   };
 }
