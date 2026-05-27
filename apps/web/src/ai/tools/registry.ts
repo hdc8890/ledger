@@ -50,6 +50,10 @@ import {
   handler as proposePlanHandler,
   inputSchema as proposePlanInput,
 } from './propose-plan';
+import {
+  handler as getGoalProgressHandler,
+  inputSchema as getGoalProgressInput,
+} from './get-goal-progress';
 import type { ToolContext } from './context';
 
 /**
@@ -177,6 +181,13 @@ export function buildTools(ctx: ToolContext) {
         'Generate a concrete spending plan to advance a financial goal. Reads 3 months of spend history, computes per-category monthly reduction targets, and returns a proposal for the user to approve. On approval, budget caps are created for the next N months. Always call this after create_goal when the user asks for a plan.',
       inputSchema: proposePlanInput,
       execute: (input) => proposePlanHandler(input, ctx),
+    }),
+
+    get_goal_progress: tool({
+      description:
+        "Return progress toward all active financial goals for the current calendar month. Shows whether each goal is on track, actual vs target values, and any anomalies surfaced by the nightly tracking job (e.g. 'You're $340 over your Dining budget with 8 days left'). Call this when the user asks how their goals are going, whether they're on track, or for a summary of goal status.",
+      inputSchema: getGoalProgressInput,
+      execute: (input) => getGoalProgressHandler(input, ctx),
     }),
   };
 }
