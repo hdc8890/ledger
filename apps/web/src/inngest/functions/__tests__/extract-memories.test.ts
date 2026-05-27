@@ -93,7 +93,7 @@ describe('handleExtractMemories', () => {
       object: {
         proposals: [
           {
-            text: 'User prefers Costco transactions to be categorised as Groceries',
+            text: 'User prefers Costco transactions to be categorized as Groceries',
             kind: 'household_rule',
             confidence: 0.9,
           },
@@ -111,7 +111,7 @@ describe('handleExtractMemories', () => {
     expect(mockInsertMemoryProposal).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'user-uuid',
-        proposedText: 'User prefers Costco transactions to be categorised as Groceries',
+        proposedText: 'User prefers Costco transactions to be categorized as Groceries',
         proposedKind: 'household_rule',
         sourceSessionId: 'session-uuid',
       }),
