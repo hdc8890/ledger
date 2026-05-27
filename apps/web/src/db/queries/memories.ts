@@ -135,6 +135,15 @@ export async function deleteMemory(id: MemoryId, userId: UserId): Promise<void> 
     .where(and(eq(memories.id, id), eq(memories.userId, userId)));
 }
 
+/**
+ * Hard-delete ALL memories for a user.
+ * Called from the "Clear all" action in the Memory management UI.
+ * This is a permanent, irreversible operation.
+ */
+export async function deleteAllMemories(userId: UserId): Promise<void> {
+  await db.delete(memories).where(eq(memories.userId, userId));
+}
+
 // ---------------------------------------------------------------------------
 // Vector similarity retrieval
 // ---------------------------------------------------------------------------

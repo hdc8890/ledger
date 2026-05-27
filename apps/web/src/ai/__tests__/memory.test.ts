@@ -15,6 +15,7 @@ vi.mock('@ai-sdk/openai', () => ({
 // Mock all repository functions used by memory.ts
 vi.mock('@/db/queries/memories', () => ({
   insertMemory: vi.fn(),
+  updateMemory: vi.fn(),
   updateMemoryEmbedding: vi.fn(),
   getMemoryById: vi.fn(),
   retrieveMemoriesBySimilarity: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('@/db/queries/audit-events', () => ({
 import { embed } from 'ai';
 import {
   insertMemory,
+  updateMemory as dbUpdateMemory,
   updateMemoryEmbedding,
   getMemoryById as dbGetMemoryById,
   retrieveMemoriesBySimilarity,
@@ -42,6 +44,8 @@ import {
   retrieveMemories,
   deleteMemory,
   listMemories,
+  updateMemoryText,
+  validateMemoryText,
 } from '../memory';
 
 const userId = brand<UserId>('user-uuid');
@@ -258,5 +262,89 @@ describe('listMemories', () => {
   it('passes custom limit and offset', async () => {
     await listMemories(userId, undefined, 20, 40);
     expect(dbListMemories).toHaveBeenCalledWith(userId, undefined, 20, 40);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateMemoryText
+// ---------------------------------------------------------------------------
+describe('validateMemoryText', () => {
+  it('allows semantic text with no financial data', () => {
+    expect(() => validateMemoryText('Costco should be categorized as Groceries')).not.toThrow();
+    expect(() => validateMemoryText('User prefers dark mode')).not.toThrow();
+    expect(() => validateMemoryText('The home value has been manually set by the user')).not.toThrow();
+    expect(() => validateMemoryText('Save for a vacation')).not.toThrow();
+  });
+
+  it('blocks raw dollar amounts', () => {
+    expect(() => validateMemoryText('Balance is $1,234.56')).toThrow('raw dollar amount');
+    expect(() => validateMemoryText('Saved $50000')).toThrow('raw dollar amount');
+    expect(() => validateMemoryText('Cost: $9.99')).toThrow('raw dollar amount');
+  });
+
+  it('blocks long digit sequences resembling account numbers', () => {
+    expect(() => validateMemoryText('Account 12345678')).toThrow('long digit sequence');
+    expect(() => validateMemoryText('Card 4532123456789012')).toThrow('long digit sequence');
+  });
+
+  it('allows short digit sequences (years, zip codes, etc.)', () => {
+    expect(() => validateMemoryText('Since 2022')).not.toThrow();
+    expect(() => validateMemoryText('ZIP 94103')).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateMemoryText
+// ---------------------------------------------------------------------------
+describe('updateMemoryText', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(embed).mockResolvedValue({
+      embedding: fakeEmbedding,
+      value: 'new text',
+      usage: { tokens: 5 },
+      warnings: [],
+    });
+    vi.mocked(dbGetMemoryById).mockResolvedValue(sampleMemoryRow);
+    vi.mocked(dbUpdateMemory).mockResolvedValue({ ...sampleMemoryRow, text: 'new text' });
+    vi.mocked(updateMemoryEmbedding).mockResolvedValue(undefined);
+    vi.mocked(insertAuditEvent).mockResolvedValue({
+      id: 'audit-uuid',
+      actor: 'user-uuid',
+      action: 'memory.update',
+      entityType: 'memory',
+      entityId: 'memory-uuid',
+      before: null,
+      after: null,
+      source: 'user',
+      confidence: 1.0,
+      at: new Date(),
+    });
+  });
+
+  it('validates text, updates DB, recomputes embedding, writes audit', async () => {
+    const result = await updateMemoryText(userId, memoryId, 'Amazon orders should be Shopping');
+
+    expect(dbUpdateMemory).toHaveBeenCalledWith(memoryId, userId, { text: 'Amazon orders should be Shopping' });
+    expect(embed).toHaveBeenCalledOnce();
+    expect(updateMemoryEmbedding).toHaveBeenCalledWith(memoryId, fakeEmbedding);
+    expect(insertAuditEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'memory.update', source: 'user' }),
+    );
+    expect(result).toMatchObject({ text: 'new text', embedding: fakeEmbedding });
+  });
+
+  it('returns undefined when memory is not found', async () => {
+    vi.mocked(dbUpdateMemory).mockResolvedValueOnce(undefined);
+    const result = await updateMemoryText(userId, memoryId, 'some text');
+    expect(result).toBeUndefined();
+    expect(embed).not.toHaveBeenCalled();
+  });
+
+  it('throws when new text contains a dollar amount', async () => {
+    await expect(updateMemoryText(userId, memoryId, 'Balance is $500')).rejects.toThrow(
+      'raw dollar amount',
+    );
+    expect(dbUpdateMemory).not.toHaveBeenCalled();
   });
 });

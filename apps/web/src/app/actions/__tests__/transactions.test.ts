@@ -14,6 +14,7 @@ const {
   mockInsertAudit,
   mockDbTransaction,
   mockRevalidate,
+  mockSaveMemory,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockFindUser: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockInsertAudit: vi.fn(),
   mockDbTransaction: vi.fn(),
   mockRevalidate: vi.fn(),
+  mockSaveMemory: vi.fn(),
 }));
 
 vi.mock('@clerk/nextjs/server', () => ({ auth: mockAuth }));
@@ -39,6 +41,9 @@ vi.mock('@/db/queries/categorization-rules', () => ({
 }));
 vi.mock('@/db/queries/audit-events', () => ({
   insertAuditEvent: mockInsertAudit,
+}));
+vi.mock('@/ai/memory', () => ({
+  saveMemory: mockSaveMemory,
 }));
 vi.mock('@/lib/db', () => ({
   db: {
@@ -79,6 +84,7 @@ describe('correctCategoryAction', () => {
     mockInsertRule.mockResolvedValue({ id: 'rule-uuid', userId: USER_ID, predicate: {}, setCategory: '' });
     mockRetagMerchant.mockResolvedValue(3);
     mockInsertAudit.mockResolvedValue({ id: 'audit-uuid' });
+    mockSaveMemory.mockResolvedValue({ id: 'memory-uuid' });
   });
 
   it('returns {} and revalidates on success', async () => {
@@ -102,9 +108,22 @@ describe('correctCategoryAction', () => {
         entityId: TXN_ID,
       }),
     );
+    expect(mockSaveMemory).toHaveBeenCalledWith(
+      USER_ID,
+      'household_rule',
+      'Netflix transactions should be categorized as Streaming & Subscriptions',
+      expect.objectContaining({ source_txn_id: TXN_ID }),
+    );
     expect(mockRevalidate).toHaveBeenCalledWith('/transactions');
     expect(mockRevalidate).toHaveBeenCalledWith('/cash-flow');
     expect(mockRevalidate).toHaveBeenCalledWith('/dashboard');
+  });
+
+  it('succeeds even when saveMemory throws (best-effort)', async () => {
+    mockSaveMemory.mockRejectedValueOnce(new Error('OpenAI down'));
+    const result = await correctCategoryAction(TXN_ID, 'Streaming & Subscriptions');
+    expect(result).toEqual({});
+    expect(mockRevalidate).toHaveBeenCalledWith('/transactions');
   });
 
   it('uses merchantRaw when merchantNormalized is null', async () => {

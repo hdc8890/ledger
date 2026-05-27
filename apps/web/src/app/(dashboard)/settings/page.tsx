@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { auth } from '@clerk/nextjs/server';
 import { findUserByClerkId } from '@/db/queries/users';
 import { getLlmUsageTotals } from '@/db/queries/llm-usage';
@@ -62,6 +63,27 @@ export default async function SettingsPage() {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Memory */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-neutral-800 dark:text-neutral-200">Memory</h2>
+        <Link
+          href="/settings/memory"
+          className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800/60"
+        >
+          <div>
+            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+              Manage memories
+            </p>
+            <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+              View, edit, or delete the preferences and rules the AI has learned about you.
+            </p>
+          </div>
+          <span className="text-neutral-400 dark:text-neutral-500" aria-hidden="true">
+            →
+          </span>
+        </Link>
       </section>
     </div>
   );

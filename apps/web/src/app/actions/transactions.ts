@@ -7,6 +7,7 @@ import { findUserByClerkId } from '@/db/queries/users';
 import { getTransactionById, updateTransactionCategory, retagSameMerchantTransactions } from '@/db/queries/transactions';
 import { insertCategorizationRule } from '@/db/queries/categorization-rules';
 import { insertAuditEvent } from '@/db/queries/audit-events';
+import { saveMemory } from '@/ai/memory';
 import { CATEGORY_TAXONOMY } from '@/lib/enrich/categorize';
 import type { TransactionId, UserId } from '@/shared/types';
 
@@ -78,6 +79,19 @@ export async function correctCategoryAction(
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to correct category';
     return { error: message };
+  }
+
+  // Best-effort: persist a household_rule memory so the agent can cite this preference.
+  // Failure here must not surface to the user — the correction is already committed.
+  try {
+    await saveMemory(
+      userId,
+      'household_rule',
+      `${merchantKey} transactions should be categorized as ${newCategory}`,
+      { source_txn_id: transactionId },
+    );
+  } catch {
+    // intentionally swallowed — memory is supplementary
   }
 
   revalidatePath('/transactions');

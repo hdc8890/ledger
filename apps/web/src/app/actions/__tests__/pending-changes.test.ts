@@ -18,6 +18,7 @@ const {
   mockInsertAudit,
   mockDbTransaction,
   mockRevalidate,
+  mockSaveMemory,
 } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
   mockFindUser: vi.fn(),
@@ -32,6 +33,7 @@ const {
   mockInsertAudit: vi.fn(),
   mockDbTransaction: vi.fn(),
   mockRevalidate: vi.fn(),
+  mockSaveMemory: vi.fn(),
 }));
 
 vi.mock('@clerk/nextjs/server', () => ({ auth: mockAuth }));
@@ -55,6 +57,9 @@ vi.mock('@/db/queries/categorization-rules', () => ({
 }));
 vi.mock('@/db/queries/audit-events', () => ({
   insertAuditEvent: mockInsertAudit,
+}));
+vi.mock('@/ai/memory', () => ({
+  saveMemory: mockSaveMemory,
 }));
 vi.mock('@/lib/db', () => ({
   db: {
@@ -129,6 +134,7 @@ beforeEach(() => {
   mockApplyProposal.mockResolvedValue(undefined);
   mockRejectProposal.mockResolvedValue(undefined);
   mockInsertAudit.mockResolvedValue({ id: 'audit-1' });
+  mockSaveMemory.mockResolvedValue({ id: 'memory-1' });
 });
 
 // ---------------------------------------------------------------------------
@@ -205,6 +211,19 @@ describe('approveChangeAction — asset_update', () => {
       expect.objectContaining({ action: 'asset.update', source: 'user', actor: CLERK_ID }),
     );
     expect(mockApplyProposal).toHaveBeenCalledWith(PROPOSAL_ID, expect.any(Date));
+    expect(mockSaveMemory).toHaveBeenCalledWith(
+      USER.id,
+      'override_note',
+      'The Tesla Model 3 value has been manually set by the user',
+      { related_asset_id: ASSET.id },
+    );
+    expect(mockRevalidate).toHaveBeenCalledWith('/dashboard/assets');
+  });
+
+  it('succeeds even when saveMemory throws (best-effort)', async () => {
+    mockSaveMemory.mockRejectedValueOnce(new Error('OpenAI down'));
+    const result = await approveChangeAction(PROPOSAL_ID);
+    expect(result).toEqual({});
     expect(mockRevalidate).toHaveBeenCalledWith('/dashboard/assets');
   });
 
