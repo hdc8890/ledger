@@ -842,3 +842,46 @@ export const budgets = pgTable(
     index('budgets_user_period_idx').on(t.userId, t.period),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// goal_progress
+// One row per (goal_id, period) tracking actual vs target for a goal.
+// Computed nightly by the track-goal-progress Inngest job.
+//
+// actual_cents / target_cents semantics by goal kind:
+//   reduce_category_spend  — sum of actual spending vs sum of budget caps
+//   save_for               — net savings this period vs monthly target
+//   increase_savings_rate  — net savings this period vs 20% of income target
+//   accelerate_debt        — net savings this period vs extra payment target
+//
+// notes: jsonb with { daysRemainingInPeriod, anomalies[], categories[]?, message? }
+// ON DELETE CASCADE — progress rows are ephemeral relative to their goal.
+// ---------------------------------------------------------------------------
+export const goalProgress = pgTable(
+  'goal_progress',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    goalId: uuid('goal_id')
+      .notNull()
+      .references(() => goals.id, { onDelete: 'cascade' }),
+    /** First day of the calendar month this progress snapshot covers (UTC). */
+    period: date('period').notNull(),
+    /** Actual value in cents for this period (spending or savings). */
+    actualCents: bigint('actual_cents', { mode: 'bigint' }).notNull(),
+    /** Target value in cents for this period (budget cap or savings target). */
+    targetCents: bigint('target_cents', { mode: 'bigint' }).notNull(),
+    /** Whether the goal is on track for this period. */
+    onTrack: boolean('on_track').notNull(),
+    /**
+     * Structured anomaly data.
+     * { daysRemainingInPeriod: number, anomalies: string[], categories?: [...], message?: string }
+     */
+    notes: jsonb('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('goal_progress_goal_period_uniq').on(t.goalId, t.period),
+    index('goal_progress_goal_id_idx').on(t.goalId),
+  ],
+);

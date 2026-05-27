@@ -172,3 +172,105 @@ export async function getMonthlyRecurringCents(userId: UserId): Promise<bigint> 
   }
   return totalMonthly;
 }
+
+// ---------------------------------------------------------------------------
+// getPeriodSavings
+// ---------------------------------------------------------------------------
+
+export type PeriodSavings = {
+  readonly incomeCents: bigint;
+  readonly spendingCents: bigint;
+  /** incomeCents − spendingCents (positive = net saver for the period). */
+  readonly savingsCents: bigint;
+};
+
+/**
+ * Compute income, spending, and net savings for a user within a single
+ * calendar month. Uses the same transaction filters as the planner:
+ * non-pending, non-deleted, non-transfer.
+ *
+ * @param period - First day of the calendar month in YYYY-MM-DD format.
+ */
+export async function getPeriodSavings(userId: UserId, period: string): Promise<PeriodSavings> {
+  const periodDate = new Date(period + 'T00:00:00Z');
+  const nextMonth = new Date(
+    Date.UTC(periodDate.getUTCFullYear(), periodDate.getUTCMonth() + 1, 1),
+  );
+  const periodEnd = nextMonth.toISOString().slice(0, 10);
+
+  const baseWhere = and(
+    eq(transactions.userId, userId),
+    sql`${transactions.deletedAt} IS NULL`,
+    not(transactions.pending),
+    not(transactions.isTransfer),
+    gte(transactions.postedAt, period),
+    lt(transactions.postedAt, periodEnd),
+  );
+
+  const [spendingRow, incomeRow] = await Promise.all([
+    db
+      .select({ total: sql<string>`coalesce(sum(${transactions.amountCents}), '0')` })
+      .from(transactions)
+      .where(and(baseWhere, sql`${transactions.amountCents} > 0`)),
+    db
+      .select({ total: sql<string>`coalesce(sum(${transactions.amountCents}) * -1, '0')` })
+      .from(transactions)
+      .where(and(baseWhere, sql`${transactions.amountCents} < 0`)),
+  ]);
+
+  const spendingCents = BigInt(spendingRow[0]?.total ?? '0');
+  const incomeCents = BigInt(incomeRow[0]?.total ?? '0');
+  return {
+    incomeCents,
+    spendingCents,
+    savingsCents: incomeCents - spendingCents,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// getCategoryActuals
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute actual spending per category for a user in a calendar month.
+ * Returns a Map<category, actualCents> for all spending categories.
+ *
+ * Applies the same transaction filters as getPlannerContext.
+ *
+ * @param period - First day of the calendar month in YYYY-MM-DD format.
+ */
+export async function getCategoryActuals(
+  userId: UserId,
+  period: string,
+): Promise<Map<string, bigint>> {
+  const periodDate = new Date(period + 'T00:00:00Z');
+  const nextMonth = new Date(
+    Date.UTC(periodDate.getUTCFullYear(), periodDate.getUTCMonth() + 1, 1),
+  );
+  const periodEnd = nextMonth.toISOString().slice(0, 10);
+
+  const rows = await db
+    .select({
+      category: sql<string>`coalesce(${transactions.category}, 'Uncategorized')`,
+      total: sql<string>`coalesce(sum(${transactions.amountCents}), '0')`,
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.userId, userId),
+        sql`${transactions.deletedAt} IS NULL`,
+        not(transactions.pending),
+        not(transactions.isTransfer),
+        sql`${transactions.amountCents} > 0`,
+        gte(transactions.postedAt, period),
+        lt(transactions.postedAt, periodEnd),
+      ),
+    )
+    .groupBy(sql`coalesce(${transactions.category}, 'Uncategorized')`);
+
+  const map = new Map<string, bigint>();
+  for (const r of rows) {
+    map.set(r.category, BigInt(r.total));
+  }
+  return map;
+}

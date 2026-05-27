@@ -29,6 +29,18 @@ export async function getGoalsByUserId(userId: UserId): Promise<GoalRow[]> {
 }
 
 /**
+ * Fetch goals with status='active' for a user, ordered by priority desc then created_at desc.
+ * Used by the progress tracking job to scope work to actionable goals only.
+ */
+export async function getActiveGoalsByUserId(userId: UserId): Promise<GoalRow[]> {
+  return db
+    .select()
+    .from(goals)
+    .where(and(eq(goals.userId, userId), eq(goals.status, 'active')))
+    .orderBy(desc(goals.priority), desc(goals.createdAt));
+}
+
+/**
  * Fetch a single goal by ID. Returns undefined if not found.
  */
 export async function getGoalById(id: GoalId): Promise<GoalRow | undefined> {
