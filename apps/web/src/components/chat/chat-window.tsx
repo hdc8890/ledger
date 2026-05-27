@@ -23,7 +23,7 @@ interface ChatWindowProps {
  */
 const POLL_INITIAL_DELAY_MS = 2000;
 /** Subsequent poll delays (exponential back-off). */
-const POLL_DELAYS_MS = [POLL_INITIAL_DELAY_MS, 4000, 6000];
+const POLL_DELAYS_MS: readonly number[] = [POLL_INITIAL_DELAY_MS, 4000, 6000];
 
 /**
  * ChatWindow — main chat interface.
@@ -69,7 +69,7 @@ export function ChatWindow({ sessionId, initialMessages, initialProposals }: Cha
       let attempt = 0;
       const poll = () => {
         if (attempt >= POLL_DELAYS_MS.length) return;
-        const delay = POLL_DELAYS_MS[attempt]!;
+        const delay = POLL_DELAYS_MS[attempt] ?? 0;
         attempt++;
         setTimeout(() => {
           void fetchProposals().then(poll);

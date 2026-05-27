@@ -129,12 +129,12 @@ Only propose memories that meet ALL of these criteria:
 - A clear, durable preference or rule (not a one-time request)
 - Semantic content only — absolutely NO raw dollar amounts, account numbers, institution names, or personally identifiable financial details
 - Not already obvious or trivial
-- Genuinely useful for personalising future AI responses
+- Genuinely useful for personalizing future AI responses
 
 Return an empty proposals array if nothing meets these criteria. Return at most ${MAX_PROPOSALS} proposals.
 
 Examples of GOOD memory text:
-- "User prefers Costco transactions to be categorised as Groceries"
+- "User prefers Costco transactions to be categorized as Groceries"
 - "User's household treats all transfers between savings and checking as non-spending"
 - "User is saving for a down payment on a house"
 
