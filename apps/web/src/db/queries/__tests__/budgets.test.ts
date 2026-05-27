@@ -15,7 +15,8 @@ const mocks = vi.hoisted(() => {
 
   const mockLimit = vi.fn();
   const mockOrderBy = vi.fn();
-  const mockWhere = vi.fn(() => ({ orderBy: mockOrderBy, limit: mockLimit }));
+  const mockGroupBy = vi.fn();
+  const mockWhere = vi.fn(() => ({ orderBy: mockOrderBy, limit: mockLimit, groupBy: mockGroupBy }));
   const mockFrom = vi.fn(() => ({ where: mockWhere }));
   const mockSelect = vi.fn(() => ({ from: mockFrom }));
 
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => {
     mockInsert,
     mockLimit,
     mockOrderBy,
+    mockGroupBy,
     mockWhere,
     mockFrom,
     mockSelect,
@@ -53,11 +55,23 @@ vi.mock('@/db/schema', () => ({
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  transactions: {
+    userId: 'user_id',
+    category: 'category',
+    amountCents: 'amount_cents',
+    deletedAt: 'deleted_at',
+    pending: 'pending',
+    isTransfer: 'is_transfer',
+    postedAt: 'posted_at',
+  },
 }));
 
 vi.mock('drizzle-orm', () => ({
   eq: vi.fn((col: string, val: unknown) => `${col}=${String(val)}`),
   and: vi.fn((...args: unknown[]) => args.join(' AND ')),
+  not: vi.fn((col: string) => `NOT ${col}`),
+  gte: vi.fn((col: string, val: unknown) => `${col}>=${String(val)}`),
+  lt: vi.fn((col: string, val: unknown) => `${col}<${String(val)}`),
   desc: vi.fn((col: string) => `${col} DESC`),
   sql: vi.fn((parts: TemplateStringsArray) => parts[0]),
 }));
@@ -70,6 +84,7 @@ import {
   getBudgetsByUserPeriod,
   getBudgetsByGoalId,
   getBudgetById,
+  getBudgetsWithActuals,
 } from '../budgets';
 
 const USER_ID = brand<UserId>('a17c2f90-1234-4d56-89ab-000000000001');
@@ -259,5 +274,60 @@ describe('getBudgetById', () => {
     const result = await getBudgetById(BUDGET_ID);
 
     expect(result).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getBudgetsWithActuals
+// ---------------------------------------------------------------------------
+
+describe('getBudgetsWithActuals', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('merges actual spending into budget rows for matching categories', async () => {
+    // First select call: getBudgetsByUserPeriod → .where().orderBy()
+    mocks.mockOrderBy.mockResolvedValueOnce([sampleBudget]);
+    // Second select call: transaction spending → .where().groupBy()
+    mocks.mockGroupBy.mockResolvedValueOnce([
+      { category: 'Dining', total: '45000' },
+    ]);
+
+    const result = await getBudgetsWithActuals(USER_ID, '2025-06-01');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.actualCents).toBe(45_000n);
+    expect(result[0]?.capCents).toBe(60_000n);
+    expect(result[0]?.category).toBe('Dining');
+  });
+
+  it('sets actualCents to 0n when no transactions exist for a category', async () => {
+    mocks.mockOrderBy.mockResolvedValueOnce([sampleBudget]);
+    // No spending rows returned for the period
+    mocks.mockGroupBy.mockResolvedValueOnce([]);
+
+    const result = await getBudgetsWithActuals(USER_ID, '2025-06-01');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.actualCents).toBe(0n);
+  });
+
+  it('ignores spending for categories not in the budget list', async () => {
+    mocks.mockOrderBy.mockResolvedValueOnce([sampleBudget]); // only 'Dining'
+    mocks.mockGroupBy.mockResolvedValueOnce([
+      { category: 'Groceries', total: '80000' }, // different category
+    ]);
+
+    const result = await getBudgetsWithActuals(USER_ID, '2025-06-01');
+
+    expect(result[0]?.actualCents).toBe(0n); // Dining has no spend
+  });
+
+  it('returns empty array when no budgets exist for the period', async () => {
+    mocks.mockOrderBy.mockResolvedValueOnce([]);
+    mocks.mockGroupBy.mockResolvedValueOnce([]);
+
+    const result = await getBudgetsWithActuals(USER_ID, '2025-06-01');
+
+    expect(result).toHaveLength(0);
   });
 });

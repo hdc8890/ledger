@@ -1,6 +1,6 @@
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, lt, not, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { budgets } from '@/db/schema';
+import { budgets, transactions } from '@/db/schema';
 import type { BudgetId, GoalId, UserId } from '@/shared/types';
 
 export type BudgetRow = typeof budgets.$inferSelect;
@@ -128,4 +128,66 @@ export async function getBudgetsByUserPeriodRange(
 export async function getBudgetById(id: BudgetId): Promise<BudgetRow | undefined> {
   const rows = await db.select().from(budgets).where(eq(budgets.id, id)).limit(1);
   return rows[0];
+}
+
+// ---------------------------------------------------------------------------
+// getBudgetsWithActuals
+// ---------------------------------------------------------------------------
+
+export type BudgetWithActual = BudgetRow & {
+  /** Actual spending in cents for this category during the budget period. */
+  readonly actualCents: bigint;
+};
+
+/**
+ * Return all budgets for a user in the given period alongside the actual
+ * spending for each budgeted category sourced live from transactions.
+ *
+ * Actual spending uses the same rules as the planner context:
+ *   - Non-pending, non-deleted, non-transfer, positive-amount transactions
+ *   - Category matched case-sensitively (NULL → 'Uncategorized')
+ *
+ * @param period - First day of the calendar month in YYYY-MM-DD format.
+ */
+export async function getBudgetsWithActuals(
+  userId: UserId,
+  period: string,
+): Promise<BudgetWithActual[]> {
+  const periodDate = new Date(period + 'T00:00:00Z');
+  const nextMonth = new Date(
+    Date.UTC(periodDate.getUTCFullYear(), periodDate.getUTCMonth() + 1, 1),
+  );
+  const periodEnd = nextMonth.toISOString().slice(0, 10);
+
+  const [budgetRows, spendingRows] = await Promise.all([
+    getBudgetsByUserPeriod(userId, period),
+    db
+      .select({
+        category: sql<string>`coalesce(${transactions.category}, 'Uncategorized')`,
+        total: sql<string>`coalesce(sum(${transactions.amountCents}), '0')`,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.userId, userId),
+          sql`${transactions.deletedAt} IS NULL`,
+          not(transactions.pending),
+          not(transactions.isTransfer),
+          sql`${transactions.amountCents} > 0`,
+          gte(transactions.postedAt, period),
+          lt(transactions.postedAt, periodEnd),
+        ),
+      )
+      .groupBy(sql`coalesce(${transactions.category}, 'Uncategorized')`),
+  ]);
+
+  const actualsByCategory = new Map<string, bigint>();
+  for (const row of spendingRows) {
+    actualsByCategory.set(row.category, BigInt(row.total));
+  }
+
+  return budgetRows.map((budget) => ({
+    ...budget,
+    actualCents: actualsByCategory.get(budget.category) ?? 0n,
+  }));
 }
