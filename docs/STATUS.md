@@ -7,10 +7,10 @@ Updated at the start/end of each phase or significant milestone.
 
 ## Current State
 
-**Stage:** Active development — Phase 6 up next  
+**Stage:** Active development — Phase 6 in progress  
 **Active Phase:** Phase 6 — Goal-Based Planning  
 **Last Completed:** Phase 5 — Memory Layer  
-**Next Phase:** Phase 6 — Goal-Based Planning
+**Next Phase:** Phase 6 — Goal-Based Planning (Task 2: Planner tool)
 
 ---
 
@@ -23,7 +23,7 @@ Updated at the start/end of each phase or significant milestone.
 | 3 | AI Chat MVP | ✅ Done | All 8 tasks complete — streaming chat, 10 tools, write-tool safety, conversation persistence, cost logging, rate limiting |
 | 4 | AI Enrichment | ✅ Done | All 7 tasks complete — merchant normalization, category inference, transfer detection, recurring bill detection, historical backfill, correction UI (/transactions page + CategoryChip + correctCategoryAction + categorization rules + retag), dashboard query transfer exclusion confirmed |
 | 5 | Memory Layer | ✅ Done | All 7 tasks complete — pgvector schema, AI memory helper, agent tools (save/delete/list/retrieve), system prompt injection, auto-extraction Inngest job + "Remember: X?" UI chip, override persistence (correctCategoryAction + approveChangeAction), memory management UI (/settings/memory — list/edit/delete/export/clear-all), privacy guardrails (validateMemoryText) |
-| 6 | Goal-Based Planning | 🔲 Not started | Awaits Phase 5 |
+| 6 | Goal-Based Planning | 🔄 In progress | Task 1 done: goals schema, create_goal tool, /goals UI |
 
 Status legend: 🔲 Not started · 🔄 In progress · ✅ Done · 🚧 Blocked
 
