@@ -28,6 +28,7 @@ export type TransferLinkId = Brand<string, 'TransferLinkId'>;
 export type RecurringSeriesId = Brand<string, 'RecurringSeriesId'>;
 export type MemoryId = Brand<string, 'MemoryId'>;
 export type MemoryProposalId = Brand<string, 'MemoryProposalId'>;
+export type GoalId = Brand<string, 'GoalId'>;
 
 /** Cast a raw string to a branded type. Use at trust boundaries (DB reads, API input). */
 export function brand<T extends Brand<string, string>>(value: string): T {

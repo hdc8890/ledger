@@ -744,3 +744,56 @@ export const memoryProposals = pgTable(
     index('memory_proposals_user_status_idx').on(t.userId, t.status),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Phase 6 — Goal-Based Planning tables
+// ---------------------------------------------------------------------------
+
+export const goalKindEnum = pgEnum('goal_kind', [
+  'save_for',
+  'accelerate_debt',
+  'reduce_category_spend',
+  'increase_savings_rate',
+]);
+
+export const goalStatusEnum = pgEnum('goal_status', [
+  'active',
+  'achieved',
+  'archived',
+  'paused',
+]);
+
+// ---------------------------------------------------------------------------
+// goals
+// A high-level financial goal that the user (or agent) has created.
+// Target amount and date are optional — not all goal kinds require them.
+// constraints: { exclude_categories: string[], max_monthly_reduction_cents: string }
+// priority: higher = first claim on discretionary dollars during arbitration.
+// ON DELETE CASCADE — goals disappear when the user is deleted.
+// ---------------------------------------------------------------------------
+export const goals = pgTable(
+  'goals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: goalKindEnum('kind').notNull(),
+    name: text('name').notNull(),
+    /** Target amount in cents. Null for goals where no fixed amount applies (e.g. increase_savings_rate). */
+    targetAmountCents: bigint('target_amount_cents', { mode: 'bigint' }),
+    /** Target completion date. Null when open-ended. */
+    targetDate: date('target_date'),
+    /** Allocation priority for multi-goal arbitration. Higher wins. Default 0. */
+    priority: integer('priority').notNull().default(0),
+    /** Optional constraints: { exclude_categories: string[], max_monthly_reduction_cents: string } */
+    constraints: jsonb('constraints').notNull().default({}),
+    status: goalStatusEnum('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('goals_user_id_idx').on(t.userId),
+    index('goals_user_status_idx').on(t.userId, t.status),
+  ],
+);
