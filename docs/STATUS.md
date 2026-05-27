@@ -22,7 +22,7 @@ Updated at the start/end of each phase or significant milestone.
 | 2 | Dashboard MVP | ✅ Done | All 7 tasks complete — 4 dashboards, empty states, skeletons, RSC-first, coverage ≥70% |
 | 3 | AI Chat MVP | ✅ Done | All 8 tasks complete — streaming chat, 10 tools, write-tool safety, conversation persistence, cost logging, rate limiting |
 | 4 | AI Enrichment | ✅ Done | All 7 tasks complete — merchant normalization, category inference, transfer detection, recurring bill detection, historical backfill, correction UI (/transactions page + CategoryChip + correctCategoryAction + categorization rules + retag), dashboard query transfer exclusion confirmed |
-| 5 | Memory Layer | 🔄 In progress | Tasks 1–3 done: schema + pgvector, AI memory helper, agent tools (save/delete/list), memory retrieval injected into system prompt on each chat turn |
+| 5 | Memory Layer | 🔄 In progress | Tasks 1–4 done: schema + pgvector, AI memory helper, agent tools (save/delete/list), memory retrieval injected into system prompt, auto-extraction Inngest job + "Remember: X?" UI chip |
 | 6 | Goal-Based Planning | 🔲 Not started | Awaits Phase 5 |
 
 Status legend: 🔲 Not started · 🔄 In progress · ✅ Done · 🚧 Blocked
