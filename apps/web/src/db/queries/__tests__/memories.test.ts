@@ -109,6 +109,8 @@ import {
   insertMemoryProposal,
   listPendingProposals,
   updateProposalStatus,
+  getProposalById,
+  hasRejectedProposalWithText,
 } from '../memories';
 import { brand } from '@/shared/types';
 import type { UserId, MemoryId, MemoryProposalId, ChatSessionId } from '@/shared/types';
@@ -430,5 +432,54 @@ describe('updateProposalStatus', () => {
       'rejected',
     );
     expect(result).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getProposalById
+// ---------------------------------------------------------------------------
+describe('getProposalById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockWhere.mockReturnValue({ limit: mockLimit });
+    mockLimit.mockReturnValue({ then: undefined }); // handled via mockResolvedValueOnce
+  });
+
+  it('returns the matching proposal row', async () => {
+    mockLimit.mockResolvedValueOnce([sampleProposal]);
+    const result = await getProposalById(proposalId);
+    expect(result).toEqual(sampleProposal);
+  });
+
+  it('returns undefined when no matching proposal', async () => {
+    mockLimit.mockResolvedValueOnce([]);
+    const result = await getProposalById(brand<MemoryProposalId>('nonexistent'));
+    expect(result).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hasRejectedProposalWithText
+// ---------------------------------------------------------------------------
+describe('hasRejectedProposalWithText', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSelect.mockReturnValue({ from: mockFrom });
+    mockFrom.mockReturnValue({ where: mockWhere });
+    mockWhere.mockReturnValue({ limit: mockLimit });
+  });
+
+  it('returns true when a rejected proposal with the same text exists', async () => {
+    mockLimit.mockResolvedValueOnce([sampleProposal]);
+    const result = await hasRejectedProposalWithText(userId, 'User prefers dark mode');
+    expect(result).toBe(true);
+  });
+
+  it('returns false when no rejected proposal with that text exists', async () => {
+    mockLimit.mockResolvedValueOnce([]);
+    const result = await hasRejectedProposalWithText(userId, 'Unknown text');
+    expect(result).toBe(false);
   });
 });

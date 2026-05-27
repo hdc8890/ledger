@@ -37,6 +37,12 @@ vi.mock('../message-bubble', () => ({
   ),
 }));
 
+vi.mock('@/app/actions/memory-proposals', () => ({
+  getPendingProposalsAction: vi.fn().mockResolvedValue({ proposals: [] }),
+  acceptProposalAction: vi.fn().mockResolvedValue({}),
+  dismissProposalAction: vi.fn().mockResolvedValue({}),
+}));
+
 function makeUIMessage(id: string, role: 'user' | 'assistant', text: string): UIMessage {
   return {
     id,

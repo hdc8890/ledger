@@ -15,8 +15,10 @@ import { logLlmCall } from '@/db/queries/llm-usage';
 import { checkAndConsumeRateLimit } from '@/db/queries/rate-limits';
 import { buildTools } from '@/ai/tools/registry';
 import { retrieveMemories } from '@/ai/memory';
+import { inngest } from '@/lib/inngest';
 import type { MemoryRow } from '@/db/queries/memories';
 import type { ChatSessionId, UserId } from '@/shared/types';
+import type { RecentMessage } from '@/inngest/functions/extract-memories';
 
 const MODEL = 'claude-sonnet-4-5';
 /** Cheap model used only for generating short session titles (fire-and-forget). */
@@ -262,6 +264,30 @@ export async function POST(request: Request): Promise<Response> {
             latencyMs,
             toolCalls: toolCalls.length > 0 ? toolCalls.map((tc) => tc.toolName) : null,
           });
+
+          // Fire-and-forget: enqueue auto-extraction job for memory proposals.
+          // Collect the last few turns from the current request's UIMessage array.
+          if (text) {
+            const recentMessages: RecentMessage[] = uiMessages
+              .flatMap((m): RecentMessage[] => {
+                if (m.role !== 'user' && m.role !== 'assistant') return [];
+                const part = m.parts.find((p) => (p as { type: string }).type === 'text');
+                const msgText =
+                  part != null ? (part as { type: 'text'; text: string }).text : '';
+                if (!msgText) return [];
+                return [{ role: m.role as 'user' | 'assistant', text: msgText }];
+              })
+              .concat([{ role: 'assistant', text }]);
+
+            void inngest
+              .send({
+                name: 'memory/chat.extract',
+                data: { userId, sessionId, recentMessages },
+              })
+              .catch((err: unknown) => {
+                console.error('[chat/route] memory extraction enqueue error:', err);
+              });
+          }
         } catch (err) {
           // Log but do not abort the stream response — the user already
           // received the streamed text even if persistence fails.
