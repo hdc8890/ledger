@@ -13,10 +13,12 @@ import { getAssetById, updateAsset } from '@/db/queries/assets';
 import { getTransactionById, updateTransactionCategory } from '@/db/queries/transactions';
 import { insertCategorizationRule } from '@/db/queries/categorization-rules';
 import { insertAuditEvent } from '@/db/queries/audit-events';
+import { insertGoal } from '@/db/queries/goals';
 import { saveMemory } from '@/ai/memory';
 import type { AssetUpdatePayload } from '@/ai/tools/update-asset';
 import type { TxnTagPayload } from '@/ai/tools/tag-transaction';
 import type { RuleCreatePayload } from '@/ai/tools/create-rule-draft';
+import type { GoalCreatePayload } from '@/ai/tools/create-goal';
 import type { AssetId, PendingChangeId, TransactionId, UserId } from '@/shared/types';
 
 export type ActionResult = { error?: string };
@@ -56,6 +58,8 @@ export async function approveChangeAction(proposalId: string): Promise<ActionRes
         await applyTxnTag(proposal.payload, userId, clerkId);
       } else if (proposal.kind === 'rule_create') {
         await applyRuleCreate(proposal.payload, userId, clerkId);
+      } else if (proposal.kind === 'goal_create') {
+        await applyGoalCreate(proposal.payload, userId, clerkId);
       } else {
         throw new Error(`Unknown proposal kind: ${proposal.kind}`);
       }
@@ -95,6 +99,8 @@ export async function approveChangeAction(proposalId: string): Promise<ActionRes
   } else if (proposal.kind === 'txn_tag') {
     revalidatePath('/dashboard/cash-flow');
     revalidatePath('/dashboard');
+  } else if (proposal.kind === 'goal_create') {
+    revalidatePath('/goals');
   } else {
     revalidatePath('/dashboard');
   }
@@ -212,6 +218,45 @@ async function applyRuleCreate(
     entityId: rule.id,
     before: null,
     after: { predicate: payload.predicate, setCategory: payload.setCategory },
+    source: 'user',
+    confidence: 1.0,
+  });
+}
+
+async function applyGoalCreate(
+  rawPayload: unknown,
+  userId: UserId,
+  clerkId: string,
+): Promise<void> {
+  const payload = rawPayload as GoalCreatePayload;
+
+  const goal = await insertGoal({
+    userId,
+    kind: payload.kind,
+    name: payload.name,
+    targetAmountCents:
+      payload.targetAmountCents !== undefined
+        ? BigInt(payload.targetAmountCents)
+        : null,
+    targetDate: payload.targetDate ?? null,
+    priority: payload.priority,
+    constraints: payload.constraints,
+    status: 'active',
+  });
+
+  await insertAuditEvent({
+    actor: clerkId,
+    action: 'goal.create',
+    entityType: 'goal',
+    entityId: goal.id,
+    before: null,
+    after: {
+      name: payload.name,
+      kind: payload.kind,
+      targetAmountCents: payload.targetAmountCents ?? null,
+      targetDate: payload.targetDate ?? null,
+      priority: payload.priority,
+    },
     source: 'user',
     confidence: 1.0,
   });
