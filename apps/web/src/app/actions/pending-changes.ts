@@ -13,6 +13,7 @@ import { getAssetById, updateAsset } from '@/db/queries/assets';
 import { getTransactionById, updateTransactionCategory } from '@/db/queries/transactions';
 import { insertCategorizationRule } from '@/db/queries/categorization-rules';
 import { insertAuditEvent } from '@/db/queries/audit-events';
+import { saveMemory } from '@/ai/memory';
 import type { AssetUpdatePayload } from '@/ai/tools/update-asset';
 import type { TxnTagPayload } from '@/ai/tools/tag-transaction';
 import type { RuleCreatePayload } from '@/ai/tools/create-rule-draft';
@@ -64,6 +65,27 @@ export async function approveChangeAction(proposalId: string): Promise<ActionRes
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to apply change';
     return { error: message };
+  }
+
+  // Best-effort: persist an override_note memory for asset value updates so the
+  // agent can cite this preference in future turns. Failure must not block the approval.
+  if (proposal.kind === 'asset_update') {
+    try {
+      const assetPayload = proposal.payload as AssetUpdatePayload;
+      if (assetPayload.valueCents !== undefined) {
+        const asset = await getAssetById(assetPayload.assetId as AssetId);
+        if (asset) {
+          await saveMemory(
+            userId,
+            'override_note',
+            `The ${asset.name} value has been manually set by the user`,
+            { related_asset_id: asset.id },
+          );
+        }
+      }
+    } catch {
+      // intentionally swallowed — memory is supplementary
+    }
   }
 
   // Revalidate per kind so affected dashboards refresh.
