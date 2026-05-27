@@ -228,3 +228,41 @@ export async function updateProposalStatus(
     .returning();
   return rows[0];
 }
+
+/**
+ * Fetch a single proposal by ID. Returns undefined if not found.
+ * Ownership is NOT enforced here — the caller must check userId.
+ */
+export async function getProposalById(id: MemoryProposalId): Promise<MemoryProposalRow | undefined> {
+  const rows = await db
+    .select()
+    .from(memoryProposals)
+    .where(eq(memoryProposals.id, id))
+    .limit(1);
+  return rows[0];
+}
+
+/**
+ * Check whether a proposal with the given text has already been rejected for
+ * this user. Used by the auto-extraction job to avoid re-proposing identical
+ * content.
+ *
+ * Returns true if a rejected proposal with exactly this text exists.
+ */
+export async function hasRejectedProposalWithText(
+  userId: UserId,
+  text: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: memoryProposals.id })
+    .from(memoryProposals)
+    .where(
+      and(
+        eq(memoryProposals.userId, userId),
+        eq(memoryProposals.proposedText, text),
+        eq(memoryProposals.status, 'rejected'),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}

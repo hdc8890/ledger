@@ -1,16 +1,29 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChat } from '@ai-sdk/react';
 import type { UIMessage } from 'ai';
 import { ChatInput } from './chat-input';
 import { MessageBubble } from './message-bubble';
+import { MemoryProposalChip } from './memory-proposal-chip';
+import { getPendingProposalsAction } from '@/app/actions/memory-proposals';
+import type { MemoryProposalRow } from '@/db/queries/memories';
 
 interface ChatWindowProps {
   sessionId: string;
   /** Persisted messages loaded server-side for session resume. */
   initialMessages?: UIMessage[];
+  /** Pending memory proposals loaded server-side on page load. */
+  initialProposals?: MemoryProposalRow[];
 }
+
+/**
+ * How long to wait after a turn completes before the first proposal poll.
+ * The Inngest job typically runs within 2–5 seconds.
+ */
+const POLL_INITIAL_DELAY_MS = 2000;
+/** Subsequent poll delays (exponential back-off). */
+const POLL_DELAYS_MS = [POLL_INITIAL_DELAY_MS, 4000, 6000];
 
 /**
  * ChatWindow — main chat interface.
@@ -19,19 +32,59 @@ interface ChatWindowProps {
  * The `id` option ensures the session ID is sent in the request body so the
  * server can persist messages to the correct session.
  * `initialMessages` is populated server-side when resuming an existing session.
+ * `initialProposals` is populated server-side; new proposals are polled after
+ * each completed turn.
  */
-export function ChatWindow({ sessionId, initialMessages }: ChatWindowProps) {
+export function ChatWindow({ sessionId, initialMessages, initialProposals }: ChatWindowProps) {
   const { messages, status, sendMessage, error } = useChat({
     id: sessionId,
     ...(initialMessages !== undefined ? { messages: initialMessages } : {}),
   });
 
+  const [proposals, setProposals] = useState<MemoryProposalRow[]>(initialProposals ?? []);
+
   const bottomRef = useRef<HTMLDivElement>(null);
+  const prevStatusRef = useRef(status);
 
   // Scroll to bottom whenever messages change.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const fetchProposals = useCallback(async () => {
+    const res = await getPendingProposalsAction();
+    if (res.proposals) {
+      setProposals(res.proposals);
+    }
+  }, []);
+
+  // Poll for new proposals after each turn completes (streaming → ready).
+  useEffect(() => {
+    const wasStreaming =
+      prevStatusRef.current === 'streaming' || prevStatusRef.current === 'submitted';
+    const isNowReady = status === 'ready';
+
+    if (wasStreaming && isNowReady) {
+      // Attempt up to POLL_DELAYS_MS.length polls with increasing delays.
+      let attempt = 0;
+      const poll = () => {
+        if (attempt >= POLL_DELAYS_MS.length) return;
+        const delay = POLL_DELAYS_MS[attempt];
+        if (delay === undefined) return;
+        attempt++;
+        setTimeout(() => {
+          void fetchProposals().then(poll);
+        }, delay);
+      };
+      poll();
+    }
+
+    prevStatusRef.current = status;
+  }, [status, fetchProposals]);
+
+  const handleProposalResolved = useCallback((proposalId: string) => {
+    setProposals((prev) => prev.filter((p) => p.id !== proposalId));
+  }, []);
 
   const isStreaming = status === 'streaming' || status === 'submitted';
 
@@ -87,6 +140,19 @@ export function ChatWindow({ sessionId, initialMessages }: ChatWindowProps) {
       {error && (
         <div className="mx-4 mb-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
           {error.message ?? 'Something went wrong. Please try again.'}
+        </div>
+      )}
+
+      {/* Memory proposal chips */}
+      {proposals.length > 0 && (
+        <div className="mx-4 mb-2 space-y-2">
+          {proposals.map((proposal) => (
+            <MemoryProposalChip
+              key={proposal.id}
+              proposal={proposal}
+              onResolved={handleProposalResolved}
+            />
+          ))}
         </div>
       )}
 
