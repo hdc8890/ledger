@@ -42,6 +42,10 @@ import {
   handler as listMemoriesHandler,
   inputSchema as listMemoriesInput,
 } from './list-memories';
+import {
+  handler as createGoalHandler,
+  inputSchema as createGoalInput,
+} from './create-goal';
 import type { ToolContext } from './context';
 
 /**
@@ -152,6 +156,16 @@ export function buildTools(ctx: ToolContext) {
         "Return a paginated list of the user's stored memories, optionally filtered by kind. Use to show the user what the agent remembers, or to find a memory ID before deleting it.",
       inputSchema: listMemoriesInput,
       execute: (input) => listMemoriesHandler(input, ctx),
+    }),
+
+    // ------------------------------------------------------------------
+    // Planning tools — goal creation (proposal flow)
+    // ------------------------------------------------------------------
+    create_goal: tool({
+      description:
+        'Propose a new financial goal (e.g. "save for a car", "reduce dining spend", "accelerate mortgage"). Returns a proposal ID for the user to approve. Do not create the goal without presenting the approval card. Always include a human-readable name and the goal kind. Target amount and date are optional.',
+      inputSchema: createGoalInput,
+      execute: (input) => createGoalHandler(input, ctx),
     }),
   };
 }

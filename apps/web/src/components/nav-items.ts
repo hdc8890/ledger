@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Receipt,
   Settings,
+  Target,
   TrendingUp,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -21,6 +22,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/cash-flow', label: 'Cash Flow', icon: TrendingUp },
   { href: '/transactions', label: 'Transactions', icon: Receipt },
   { href: '/debt', label: 'Debt', icon: CreditCard },
+  { href: '/goals', label: 'Goals', icon: Target },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
   { href: '/accounts', label: 'Accounts', icon: Building2 },
   { href: '/assets', label: 'Assets', icon: Landmark },
