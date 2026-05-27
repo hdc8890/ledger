@@ -3,15 +3,20 @@ import { auth } from '@clerk/nextjs/server';
 import { findUserByClerkId } from '@/db/queries/users';
 import { getLatestNetWorthSnapshot, getNetWorthSeries } from '@/db/queries/net-worth';
 import { getAssetBreakdown } from '@/db/queries/assets';
+import { getActiveGoalsByUserId } from '@/db/queries/goals';
+import { getLatestGoalProgress } from '@/db/queries/goal-progress';
 import { centsToNumber } from '@/shared/money';
 import { NetWorthSummaryCard } from '@/components/net-worth/net-worth-summary-card';
 import { NetWorthTrendChart } from '@/components/net-worth/net-worth-trend-chart';
 import { AllocationDonut } from '@/components/net-worth/allocation-donut';
 import { DebtRatioChip } from '@/components/net-worth/debt-ratio-chip';
 import { NetWorthEmptyState } from '@/components/net-worth/empty-state';
+import { GoalProgressWidget } from '@/components/goals/goal-progress-widget';
 import type { TrendPoint } from '@/components/net-worth/net-worth-trend-chart';
 import type { AllocationSlice } from '@/components/net-worth/allocation-donut';
+import type { GoalWithLatestProgress } from '@/components/goals/goal-progress-widget';
 import type { UserId } from '@/shared/types';
+import type { GoalId } from '@/shared/types';
 
 const KIND_LABELS: Record<string, string> = {
   home: 'Home',
@@ -31,14 +36,24 @@ export default async function DashboardPage() {
 
   const userId = user.id as UserId;
 
-  const [latestSnapshot, series30d, series90d, series1y, breakdown] =
+  const [latestSnapshot, series30d, series90d, series1y, breakdown, activeGoals] =
     await Promise.all([
       getLatestNetWorthSnapshot(userId),
       getNetWorthSeries(userId, '30d'),
       getNetWorthSeries(userId, '90d'),
       getNetWorthSeries(userId, '1y'),
       getAssetBreakdown(userId),
+      getActiveGoalsByUserId(userId),
     ]);
+
+  // Fetch latest progress for each active goal in parallel.
+  const progressRows = await Promise.all(
+    activeGoals.map((g) => getLatestGoalProgress(g.id as GoalId)),
+  );
+  const goalsWithProgress: GoalWithLatestProgress[] = activeGoals.map((goal, i) => ({
+    goal,
+    progress: progressRows[i],
+  }));
 
   const hasData = latestSnapshot != null || breakdown.length > 0;
 
@@ -52,6 +67,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <NetWorthEmptyState />
+        <GoalProgressWidget goalsWithProgress={goalsWithProgress} />
       </div>
     );
   }
@@ -100,6 +116,8 @@ export default async function DashboardPage() {
       </div>
 
       <AllocationDonut slices={allocationSlices} />
+
+      <GoalProgressWidget goalsWithProgress={goalsWithProgress} />
     </div>
   );
 }
