@@ -14,12 +14,14 @@ import { getTransactionById, updateTransactionCategory } from '@/db/queries/tran
 import { insertCategorizationRule } from '@/db/queries/categorization-rules';
 import { insertAuditEvent } from '@/db/queries/audit-events';
 import { insertGoal } from '@/db/queries/goals';
+import { upsertBudget } from '@/db/queries/budgets';
 import { saveMemory } from '@/ai/memory';
 import type { AssetUpdatePayload } from '@/ai/tools/update-asset';
 import type { TxnTagPayload } from '@/ai/tools/tag-transaction';
 import type { RuleCreatePayload } from '@/ai/tools/create-rule-draft';
 import type { GoalCreatePayload } from '@/ai/tools/create-goal';
-import type { AssetId, PendingChangeId, TransactionId, UserId } from '@/shared/types';
+import type { PlanProposePayload } from '@/ai/tools/propose-plan';
+import type { AssetId, GoalId, PendingChangeId, TransactionId, UserId } from '@/shared/types';
 
 export type ActionResult = { error?: string };
 
@@ -60,6 +62,8 @@ export async function approveChangeAction(proposalId: string): Promise<ActionRes
         await applyRuleCreate(proposal.payload, userId, clerkId);
       } else if (proposal.kind === 'goal_create') {
         await applyGoalCreate(proposal.payload, userId, clerkId);
+      } else if (proposal.kind === 'plan_propose') {
+        await applyPlanPropose(proposal.payload, userId, clerkId);
       } else {
         throw new Error(`Unknown proposal kind: ${proposal.kind}`);
       }
@@ -101,6 +105,10 @@ export async function approveChangeAction(proposalId: string): Promise<ActionRes
     revalidatePath('/dashboard');
   } else if (proposal.kind === 'goal_create') {
     revalidatePath('/goals');
+  } else if (proposal.kind === 'plan_propose') {
+    revalidatePath('/goals');
+    revalidatePath('/budgets');
+    revalidatePath('/dashboard');
   } else {
     revalidatePath('/dashboard');
   }
@@ -256,6 +264,59 @@ async function applyGoalCreate(
       targetAmountCents: payload.targetAmountCents ?? null,
       targetDate: payload.targetDate ?? null,
       priority: payload.priority,
+    },
+    source: 'user',
+    confidence: 1.0,
+  });
+}
+
+async function applyPlanPropose(
+  rawPayload: unknown,
+  userId: UserId,
+  clerkId: string,
+): Promise<void> {
+  const payload = rawPayload as PlanProposePayload;
+
+  // Verify the goal exists and belongs to the user before creating budgets.
+  const { getGoalById } = await import('@/db/queries/goals');
+  const goal = await getGoalById(payload.goalId as GoalId);
+  if (!goal) throw new Error('Goal not found');
+  if (goal.userId !== userId) throw new Error('Forbidden');
+
+  const now = new Date();
+  let budgetCount = 0;
+
+  // Create budget rows for each future month in the plan window.
+  // Period 0 = next calendar month; period i = currentMonth + 1 + i.
+  for (let i = 0; i < payload.planMonths; i++) {
+    const periodDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1 + i, 1));
+    const period = periodDate.toISOString().slice(0, 10);
+
+    for (const delta of payload.categoryDeltas) {
+      await upsertBudget({
+        userId,
+        goalId: goal.id,
+        period,
+        category: delta.category,
+        capCents: BigInt(delta.capCents),
+        manualOverride: false,
+        createdBy: 'ai',
+      });
+      budgetCount++;
+    }
+  }
+
+  await insertAuditEvent({
+    actor: clerkId,
+    action: 'plan.apply',
+    entityType: 'goal',
+    entityId: goal.id,
+    before: null,
+    after: {
+      planMonths: payload.planMonths,
+      categoryCount: payload.categoryDeltas.length,
+      budgetCount,
+      confidence: payload.confidence,
     },
     source: 'user',
     confidence: 1.0,
