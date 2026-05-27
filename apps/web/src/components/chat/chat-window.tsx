@@ -69,8 +69,7 @@ export function ChatWindow({ sessionId, initialMessages, initialProposals }: Cha
       let attempt = 0;
       const poll = () => {
         if (attempt >= POLL_DELAYS_MS.length) return;
-        const delay = POLL_DELAYS_MS[attempt];
-        if (delay === undefined) return;
+        const delay = POLL_DELAYS_MS[attempt]!;
         attempt++;
         setTimeout(() => {
           void fetchProposals().then(poll);
