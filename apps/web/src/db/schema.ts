@@ -749,6 +749,8 @@ export const memoryProposals = pgTable(
 // Phase 6 — Goal-Based Planning tables
 // ---------------------------------------------------------------------------
 
+export const budgetCreatedByEnum = pgEnum('budget_created_by', ['user', 'ai']);
+
 export const goalKindEnum = pgEnum('goal_kind', [
   'save_for',
   'accelerate_debt',
@@ -795,5 +797,48 @@ export const goals = pgTable(
   (t) => [
     index('goals_user_id_idx').on(t.userId),
     index('goals_user_status_idx').on(t.userId, t.status),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// budgets
+// Monthly category spending caps derived from approved plans.
+// One row per (user_id, period, category) — the UNIQUE constraint ensures
+// the approval action can upsert safely.
+//
+// goal_id: SET NULL when the originating goal is deleted so the budget row
+// is retained (the user may still want the cap even if the goal is gone).
+//
+// manual_override = true when the user has directly edited the cap via the
+// /budgets UI, preventing automated re-planning from overwriting it.
+//
+// created_by distinguishes AI-generated caps (from plan approval) from
+// user-created caps (entered manually in the /budgets UI).
+// ---------------------------------------------------------------------------
+export const budgets = pgTable(
+  'budgets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The goal this budget was derived from. SET NULL when goal is deleted. */
+    goalId: uuid('goal_id').references(() => goals.id, { onDelete: 'set null' }),
+    /** First day of the calendar month this cap applies to (UTC). */
+    period: date('period').notNull(),
+    category: text('category').notNull(),
+    /** Spending cap in cents. Must be positive. */
+    capCents: bigint('cap_cents', { mode: 'bigint' }).notNull(),
+    /** True when the user has manually overridden this cap. Blocks automated re-planning from overwriting it. */
+    manualOverride: boolean('manual_override').notNull().default(false),
+    createdBy: budgetCreatedByEnum('created_by').notNull().default('ai'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('budgets_user_period_category_uniq').on(t.userId, t.period, t.category),
+    index('budgets_user_id_idx').on(t.userId),
+    index('budgets_goal_id_idx').on(t.goalId),
+    index('budgets_user_period_idx').on(t.userId, t.period),
   ],
 );
