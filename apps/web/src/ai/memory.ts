@@ -4,15 +4,16 @@
  * Wraps the memory repository with embedding generation so callers don't
  * need to import the embeddings model or deal with vector formatting.
  *
- * Privacy rule (AGENTS.md §0): text passed to saveMemory must be semantic —
- * no raw amounts, account numbers, or institution names. The caller is
- * responsible for sanitizing input before calling these functions.
+ * Privacy rule (AGENTS.md §0): memory text must be semantic — no raw
+ * dollar amounts, account numbers, or institution names. Enforced by
+ * validateMemoryText(), which is called in saveMemory() and updateMemoryText().
  */
 
 import { embed } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import {
   insertMemory,
+  updateMemory as dbUpdateMemory,
   updateMemoryEmbedding,
   getMemoryById as dbGetMemoryById,
   retrieveMemoriesBySimilarity,
@@ -22,6 +23,33 @@ import {
 import type { MemoryRow, MemoryKind } from '@/db/queries/memories';
 import type { UserId, MemoryId } from '@/shared/types';
 import { insertAuditEvent } from '@/db/queries/audit-events';
+
+// ---------------------------------------------------------------------------
+// Privacy validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Reject text that contains raw financial data.
+ *
+ * Blocks:
+ *   - Dollar amounts: "$1,234.56", "$50000", "$1.5k" (any "$" followed by digits)
+ *   - Long digit sequences (≥8 consecutive digits) that resemble account/card numbers
+ *
+ * Throws `Error` if either pattern is detected. Callers must sanitize their
+ * text to be semantic before passing it here.
+ */
+export function validateMemoryText(text: string): void {
+  if (/\$\d[\d,]*(?:\.\d{1,2})?/.test(text)) {
+    throw new Error(
+      'validateMemoryText: raw dollar amount detected — memory text must be semantic (no dollar values)',
+    );
+  }
+  if (/\d{8,}/.test(text)) {
+    throw new Error(
+      'validateMemoryText: long digit sequence detected — memory text must not contain account or card numbers',
+    );
+  }
+}
 
 /** text-embedding-3-small: 1536 dims, ~$0.02/1M tokens — negligible at personal scale. */
 const EMBEDDING_MODEL = 'text-embedding-3-small';
@@ -70,6 +98,7 @@ export async function saveMemory(
   metadata?: Record<string, unknown>,
   confidence = 1.0,
 ): Promise<MemoryRow> {
+  validateMemoryText(text);
   const memory = await insertMemory({
     userId,
     kind,
@@ -146,4 +175,40 @@ export async function listMemories(
   offset = 0,
 ): Promise<MemoryRow[]> {
   return dbListMemories(userId, kind, limit, offset);
+}
+
+/**
+ * Update the text of an existing memory.
+ *
+ * Steps:
+ *   1. Validate the new text with validateMemoryText.
+ *   2. Persist the new text in the DB.
+ *   3. Recompute and store the embedding so retrieval stays accurate.
+ *   4. Write an audit event.
+ *
+ * Returns the updated row, or undefined if the memory is not found or
+ * does not belong to the user.
+ */
+export async function updateMemoryText(
+  userId: UserId,
+  memoryId: MemoryId,
+  newText: string,
+): Promise<MemoryRow | undefined> {
+  validateMemoryText(newText);
+  const prior = await dbGetMemoryById(memoryId);
+  const updated = await dbUpdateMemory(memoryId, userId, { text: newText });
+  if (!updated) return undefined;
+  const embedding = await getEmbedding(newText);
+  await updateMemoryEmbedding(memoryId, embedding);
+  await insertAuditEvent({
+    actor: userId,
+    action: 'memory.update',
+    entityType: 'memory',
+    entityId: memoryId,
+    before: prior ? { text: prior.text } : null,
+    after: { text: newText },
+    source: 'user',
+    confidence: 1.0,
+  });
+  return { ...updated, embedding };
 }
