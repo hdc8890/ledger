@@ -10,7 +10,7 @@
  */
 
 import { embed } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { getEmbeddingModel } from '@/ai/provider';
 import {
   insertMemory,
   updateMemory as dbUpdateMemory,
@@ -51,17 +51,19 @@ export function validateMemoryText(text: string): void {
   }
 }
 
-/** text-embedding-3-small: 1536 dims, ~$0.02/1M tokens — negligible at personal scale. */
-const EMBEDDING_MODEL = 'text-embedding-3-small';
+/**
+ * Embedding model dim is locked at 1536 by the pgvector schema.
+ * The concrete model id is selected by `@/ai/provider` via env config.
+ */
 const EMBEDDING_DIM = 1536;
 
 /**
- * Generate an embedding for the given text using text-embedding-3-small.
- * Returns a 1536-dimensional float array.
+ * Generate an embedding for the given text using the configured embedding model.
+ * Returns a 1536-dimensional float array (matches the pgvector schema).
  */
 async function getEmbedding(text: string): Promise<number[]> {
   const { embedding } = await embed({
-    model: openai.embedding(EMBEDDING_MODEL),
+    model: getEmbeddingModel(),
     value: text,
   });
   if (embedding.length !== EMBEDDING_DIM) {

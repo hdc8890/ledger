@@ -10,7 +10,7 @@
  */
 
 import { generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { getEnrichmentModel } from '@/ai/provider';
 import { z } from 'zod';
 import { logLlmCall } from '@/db/queries/llm-usage';
 import type { CategorizationRuleRow } from '@/db/queries/categorization-rules';
@@ -182,7 +182,7 @@ export async function callLlmCategorizeBatch(
 
   const startMs = Date.now();
   const { object, usage } = await generateObject({
-    model: openai('gpt-4o-mini'),
+    model: getEnrichmentModel(),
     schema: llmCategorizeBatchResponseSchema,
     prompt: [
       'You are a financial transaction categorization assistant.',

@@ -19,7 +19,7 @@
  */
 
 import { generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { getEnrichmentModel, modelIds } from '@/ai/provider';
 import { z } from 'zod';
 import { inngest } from '@/lib/inngest';
 import {
@@ -30,7 +30,7 @@ import { logLlmCall } from '@/db/queries/llm-usage';
 import type { UserId, ChatSessionId } from '@/shared/types';
 
 /** Use the cheap model — this is a high-volume post-processing call. */
-const EXTRACT_MODEL = 'gpt-4o-mini';
+const EXTRACT_MODEL = modelIds.enrichment;
 
 /** Maximum number of proposals to produce per turn. */
 const MAX_PROPOSALS = 3;
@@ -121,7 +121,7 @@ export async function handleExtractMemories(
   const extraction = await step.run('extract-proposals', async () => {
     const start = Date.now();
     const { object, usage } = await generateObject({
-      model: openai(EXTRACT_MODEL),
+      model: getEnrichmentModel(),
       schema: ExtractionResultSchema,
       prompt: `You are a memory extraction assistant for a personal financial AI. Review the conversation below and identify any lasting preferences, household rules, or facts that are worth remembering for future conversations.
 

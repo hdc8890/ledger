@@ -10,7 +10,7 @@
  */
 
 import { generateObject } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { getEnrichmentModel } from '@/ai/provider';
 import { z } from 'zod';
 import {
   getAllMerchantAliases,
@@ -102,7 +102,7 @@ export async function callLlmBatch(
 
   const startMs = Date.now();
   const { object, usage } = await generateObject({
-    model: openai('gpt-4o-mini'),
+    model: getEnrichmentModel(),
     schema: llmBatchResponseSchema,
     prompt: [
       'You are a financial data enrichment assistant.',

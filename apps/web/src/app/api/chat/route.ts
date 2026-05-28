@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { streamText, generateText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { getChatModel, getTitleModel, modelIds } from '@/ai/provider';
 import { z } from 'zod';
 import { findUserByClerkId } from '@/db/queries/users';
 import {
@@ -20,9 +20,13 @@ import type { MemoryRow } from '@/db/queries/memories';
 import type { ChatSessionId, UserId } from '@/shared/types';
 import type { RecentMessage } from '@/inngest/functions/extract-memories';
 
-const MODEL = 'claude-sonnet-4-5';
-/** Cheap model used only for generating short session titles (fire-and-forget). */
-const TITLE_MODEL = 'claude-haiku-4-5';
+/**
+ * Model identifiers come from `@/ai/provider` so a single env var
+ * (`LLM_CHAT_PROVIDER` / `LLM_CHAT_MODEL`, etc.) swaps the underlying provider.
+ * We retain the chat alias so `logLlmCall(... model: MODEL)` keeps logging
+ * the concrete model id.
+ */
+const MODEL = modelIds.chat;
 
 /**
  * Approximate token count using 4 chars-per-token heuristic.
@@ -112,7 +116,7 @@ async function generateSessionTitle(
 ): Promise<void> {
   try {
     const { text } = await generateText({
-      model: anthropic(TITLE_MODEL),
+      model: getTitleModel(),
       prompt: `Generate a concise 3-6 word title for a financial chat conversation that starts with this user message. Return only the title — no punctuation, no quotes, no explanation.
 
 User message: "${firstUserMessage.slice(0, 300)}"`,
@@ -239,7 +243,7 @@ export async function POST(request: Request): Promise<Response> {
   const streamStart = Date.now();
   try {
     const result = streamText({
-      model: anthropic(MODEL),
+      model: getChatModel(),
       system: buildSystemPrompt(new Date().toISOString().split('T')[0] ?? '', memoryContext),
       messages: modelMessages,
       tools: buildTools({ userId }),
