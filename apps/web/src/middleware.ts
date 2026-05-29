@@ -1,17 +1,28 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
 
-const isPublicRoute = createRouteMatcher([
-  '/sign-in(.*)',
-  '/sign-up(.*)',
+// Routes that do not require authentication. A path matches when it equals a
+// prefix exactly or sits beneath it (prefix + '/').
+const PUBLIC_PREFIXES = [
+  '/sign-in',
   '/~offline',
-  '/api/plaid/webhook(.*)',
-  '/api/inngest(.*)',
-]);
+  '/api/auth',
+  '/api/plaid/webhook',
+  '/api/inngest',
+];
 
-export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    await auth.protect();
-  }
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+export default auth((request) => {
+  if (isPublicRoute(request.nextUrl.pathname)) return;
+  if (request.auth) return;
+
+  const signInUrl = new URL('/sign-in', request.nextUrl.origin);
+  return NextResponse.redirect(signInUrl);
 });
 
 export const config = {
