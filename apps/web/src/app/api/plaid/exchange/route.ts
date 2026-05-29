@@ -1,14 +1,13 @@
-import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { insertPlaidItem } from '@/db/queries/plaid-items';
 import { upsertAccount } from '@/db/queries/accounts';
 import { insertAuditEvent } from '@/db/queries/audit-events';
 import { encryptSecret } from '@/lib/encrypt';
 import { plaidClient } from '@/lib/plaid';
 import { dollarsToCents } from '@/shared/money';
-import type { PlaidItemId, UserId } from '@/shared/types';
+import type { PlaidItemId } from '@/shared/types';
 
 // ---------------------------------------------------------------------------
 // POST /api/plaid/exchange
@@ -29,8 +28,8 @@ const ExchangeBody = z.object({
 });
 
 export async function POST(request: Request): Promise<Response> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -52,11 +51,6 @@ export async function POST(request: Request): Promise<Response> {
 
   const { publicToken, institutionId, institutionName } = parsed.data;
 
-  const user = await findUserByClerkId(clerkId);
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
-  }
-
   // Wrap the access-token exchange and all subsequent DB work in a single
   // try/catch so raw Plaid errors and stack traces never reach the client.
   // AGENTS.md §2: "raw stack traces never reach the client."
@@ -72,8 +66,7 @@ export async function POST(request: Request): Promise<Response> {
     const accessTokenEnc = await encryptSecret(accessToken);
 
     const item = await insertPlaidItem({
-      // Cast: Drizzle infers uuid as string; branded type is applied at the trust boundary.
-      userId: user.id as UserId,
+      userId,
       accessTokenEnc,
       plaidItemId,
       institutionId,
@@ -90,8 +83,7 @@ export async function POST(request: Request): Promise<Response> {
     const savedAccounts = await Promise.all(
       accountsRes.data.accounts.map((pa) =>
         upsertAccount({
-          // Cast: same branded-type boundary reason as userId above.
-          userId: user.id as UserId,
+          userId,
           plaidItemId: item.id as PlaidItemId,
           plaidAccountId: pa.account_id,
           name: pa.name,
@@ -109,7 +101,7 @@ export async function POST(request: Request): Promise<Response> {
     );
 
     await insertAuditEvent({
-      actor: clerkId,
+      actor: userId,
       action: 'plaid.connect',
       entityType: 'plaid_item',
       entityId: item.id,

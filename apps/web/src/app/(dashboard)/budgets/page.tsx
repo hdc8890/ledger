@@ -1,23 +1,18 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getBudgetsWithActuals } from '@/db/queries/budgets';
 import { BudgetRow } from '@/components/budgets/budget-row';
-import type { UserId } from '@/shared/types';
 
 export const metadata = { title: 'Budgets' };
 
 export default async function BudgetsPage() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) redirect('/sign-in');
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
 
   const now = new Date();
   const period = `${now.getUTCFullYear().toString()}-${(now.getUTCMonth() + 1).toString().padStart(2, '0')}-01`;
 
-  const budgets = await getBudgetsWithActuals(user.id as UserId, period);
+  const budgets = await getBudgetsWithActuals(userId, period);
 
   // Days remaining in the current calendar month (0 on the last day).
   const daysInMonth = new Date(

@@ -1,11 +1,10 @@
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getGoalById, archiveGoal, updateGoal } from '@/db/queries/goals';
 import { insertAuditEvent } from '@/db/queries/audit-events';
-import type { GoalId, UserId } from '@/shared/types';
+import type { GoalId } from '@/shared/types';
 
 export type ActionResult = { error?: string };
 
@@ -13,21 +12,18 @@ export type ActionResult = { error?: string };
  * Archive a goal. Soft status change — the row is retained for history.
  */
 export async function archiveGoalAction(goalId: string): Promise<ActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   const goal = await getGoalById(goalId as GoalId);
   if (!goal) return { error: 'Goal not found' };
-  if (goal.userId !== user.id) return { error: 'Forbidden' };
+  if (goal.userId !== userId) return { error: 'Forbidden' };
   if (goal.status === 'archived') return { error: 'Goal is already archived' };
 
-  await archiveGoal(goalId as GoalId, user.id as UserId);
+  await archiveGoal(goalId as GoalId, userId);
 
   await insertAuditEvent({
-    actor: clerkId,
+    actor: userId,
     action: 'goal.archive',
     entityType: 'goal',
     entityId: goal.id,
@@ -48,15 +44,12 @@ export async function updateGoalAction(
   goalId: string,
   patch: { name?: string; priority?: number },
 ): Promise<ActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   const goal = await getGoalById(goalId as GoalId);
   if (!goal) return { error: 'Goal not found' };
-  if (goal.userId !== user.id) return { error: 'Forbidden' };
+  if (goal.userId !== userId) return { error: 'Forbidden' };
   if (goal.status === 'archived') return { error: 'Cannot edit an archived goal' };
 
   if (!patch.name && patch.priority === undefined) return { error: 'No changes provided' };
@@ -67,7 +60,7 @@ export async function updateGoalAction(
   });
 
   await insertAuditEvent({
-    actor: clerkId,
+    actor: userId,
     action: 'goal.update',
     entityType: 'goal',
     entityId: goal.id,

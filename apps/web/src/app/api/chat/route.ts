@@ -1,9 +1,8 @@
-import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { streamText, generateText, convertToModelMessages, stepCountIs, type UIMessage } from 'ai';
 import { getChatModel, getTitleModel, modelIds } from '@/ai/provider';
 import { z } from 'zod';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import {
   createChatSession,
   getChatSessionById,
@@ -17,7 +16,7 @@ import { buildTools } from '@/ai/tools/registry';
 import { retrieveMemories } from '@/ai/memory';
 import { buildMemoryContext } from './memory-context';
 import { inngest } from '@/lib/inngest';
-import type { ChatSessionId, UserId } from '@/shared/types';
+import type { ChatSessionId } from '@/shared/types';
 import type { RecentMessage } from '@/inngest/functions/extract-memories';
 
 /**
@@ -93,8 +92,8 @@ User message: "${firstUserMessage.slice(0, 300)}"`,
 
 export async function POST(request: Request): Promise<Response> {
   // 1. Auth.
-  const { userId: clerkId } = await auth();
-  if (!clerkId) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -116,15 +115,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const { id: sessionId, messages: rawMessages } = parsed.data;
 
-  // 3. Resolve internal user.
-  const user = await findUserByClerkId(clerkId);
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
-  }
-
-  const userId = user.id as UserId;
-
-  // 4. Rate limit — 50 requests/hour per user (Postgres token bucket).
+  // 3. Rate limit — 50 requests/hour per user (Postgres token bucket).
   const rateLimit = await checkAndConsumeRateLimit(userId);
   if (!rateLimit.allowed) {
     return NextResponse.json(

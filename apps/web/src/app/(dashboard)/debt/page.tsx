@@ -1,22 +1,15 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getLiabilitiesByUserId, getDebtSummary } from '@/db/queries/liabilities';
 import { DebtSummaryCard } from '@/components/debt/debt-summary-card';
 import { LiabilityList } from '@/components/debt/liability-list';
 import { PayoffChart } from '@/components/debt/payoff-chart';
 import { DebtEmptyState } from '@/components/debt/empty-state';
-import type { UserId } from '@/shared/types';
 import type { LiabilityPayoffInput } from '@/components/debt/payoff-chart';
 
 export default async function DebtPage() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) redirect('/sign-in');
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
 
   const [liabilities, summary] = await Promise.all([
     getLiabilitiesByUserId(userId),

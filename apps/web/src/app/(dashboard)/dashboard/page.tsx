@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getLatestNetWorthSnapshot, getNetWorthSeries } from '@/db/queries/net-worth';
 import { getAssetBreakdown } from '@/db/queries/assets';
 import { getActiveGoalsByUserId } from '@/db/queries/goals';
@@ -15,7 +14,6 @@ import { GoalProgressWidget } from '@/components/goals/goal-progress-widget';
 import type { TrendPoint } from '@/components/net-worth/net-worth-trend-chart';
 import type { AllocationSlice } from '@/components/net-worth/allocation-donut';
 import type { GoalWithLatestProgress } from '@/components/goals/goal-progress-widget';
-import type { UserId } from '@/shared/types';
 import type { GoalId } from '@/shared/types';
 
 const KIND_LABELS: Record<string, string> = {
@@ -28,13 +26,8 @@ const KIND_LABELS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) redirect('/sign-in');
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
 
   const [latestSnapshot, series30d, series90d, series1y, breakdown, activeGoals] =
     await Promise.all([

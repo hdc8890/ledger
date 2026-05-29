@@ -1,9 +1,8 @@
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import {
   getPendingChangeById,
   applyPendingChange,
@@ -38,32 +37,28 @@ export type ActionResult = { error?: string };
  * real writes. Write tools only produce proposals; they never write directly.
  */
 export async function approveChangeAction(proposalId: string): Promise<ActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   const proposal = await getPendingChangeById(proposalId as PendingChangeId);
   if (!proposal) return { error: 'Proposal not found' };
-  if (proposal.userId !== user.id) return { error: 'Forbidden' };
+  if (proposal.userId !== userId) return { error: 'Forbidden' };
   if (proposal.status !== 'pending') return { error: 'Proposal already resolved' };
 
-  const userId = user.id as UserId;
   const appliedAt = new Date();
 
   try {
     await db.transaction(async () => {
       if (proposal.kind === 'asset_update') {
-        await applyAssetUpdate(proposal.payload, userId, clerkId);
+        await applyAssetUpdate(proposal.payload, userId);
       } else if (proposal.kind === 'txn_tag') {
-        await applyTxnTag(proposal.payload, userId, clerkId);
+        await applyTxnTag(proposal.payload, userId);
       } else if (proposal.kind === 'rule_create') {
-        await applyRuleCreate(proposal.payload, userId, clerkId);
+        await applyRuleCreate(proposal.payload, userId);
       } else if (proposal.kind === 'goal_create') {
-        await applyGoalCreate(proposal.payload, userId, clerkId);
+        await applyGoalCreate(proposal.payload, userId);
       } else if (proposal.kind === 'plan_propose') {
-        await applyPlanPropose(proposal.payload, userId, clerkId);
+        await applyPlanPropose(proposal.payload, userId);
       } else {
         throw new Error(`Unknown proposal kind: ${proposal.kind}`);
       }
@@ -125,15 +120,12 @@ export async function approveChangeAction(proposalId: string): Promise<ActionRes
  * any live table. No audit event is written — rejection is passive.
  */
 export async function rejectChangeAction(proposalId: string): Promise<ActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   const proposal = await getPendingChangeById(proposalId as PendingChangeId);
   if (!proposal) return { error: 'Proposal not found' };
-  if (proposal.userId !== user.id) return { error: 'Forbidden' };
+  if (proposal.userId !== userId) return { error: 'Forbidden' };
   if (proposal.status !== 'pending') return { error: 'Proposal already resolved' };
 
   await rejectPendingChange(proposalId as PendingChangeId);
@@ -147,7 +139,6 @@ export async function rejectChangeAction(proposalId: string): Promise<ActionResu
 async function applyAssetUpdate(
   rawPayload: unknown,
   userId: UserId,
-  clerkId: string,
 ): Promise<void> {
   const payload = rawPayload as AssetUpdatePayload;
 
@@ -167,7 +158,7 @@ async function applyAssetUpdate(
   await updateAsset(payload.assetId as AssetId, patch);
 
   await insertAuditEvent({
-    actor: clerkId,
+    actor: userId,
     action: 'asset.update',
     entityType: 'asset',
     entityId: payload.assetId,
@@ -184,7 +175,7 @@ async function applyAssetUpdate(
   });
 }
 
-async function applyTxnTag(rawPayload: unknown, userId: UserId, clerkId: string): Promise<void> {
+async function applyTxnTag(rawPayload: unknown, userId: UserId): Promise<void> {
   const payload = rawPayload as TxnTagPayload;
 
   const txn = await getTransactionById(payload.transactionId as TransactionId);
@@ -194,7 +185,7 @@ async function applyTxnTag(rawPayload: unknown, userId: UserId, clerkId: string)
   await updateTransactionCategory(payload.transactionId as TransactionId, payload.category, 'user');
 
   await insertAuditEvent({
-    actor: clerkId,
+    actor: userId,
     action: 'txn.tag',
     entityType: 'transaction',
     entityId: payload.transactionId,
@@ -208,7 +199,6 @@ async function applyTxnTag(rawPayload: unknown, userId: UserId, clerkId: string)
 async function applyRuleCreate(
   rawPayload: unknown,
   userId: UserId,
-  clerkId: string,
 ): Promise<void> {
   const payload = rawPayload as RuleCreatePayload;
 
@@ -220,7 +210,7 @@ async function applyRuleCreate(
   });
 
   await insertAuditEvent({
-    actor: clerkId,
+    actor: userId,
     action: 'rule.create',
     entityType: 'categorization_rule',
     entityId: rule.id,
@@ -234,7 +224,6 @@ async function applyRuleCreate(
 async function applyGoalCreate(
   rawPayload: unknown,
   userId: UserId,
-  clerkId: string,
 ): Promise<void> {
   const payload = rawPayload as GoalCreatePayload;
 
@@ -253,7 +242,7 @@ async function applyGoalCreate(
   });
 
   await insertAuditEvent({
-    actor: clerkId,
+    actor: userId,
     action: 'goal.create',
     entityType: 'goal',
     entityId: goal.id,
@@ -273,7 +262,6 @@ async function applyGoalCreate(
 async function applyPlanPropose(
   rawPayload: unknown,
   userId: UserId,
-  clerkId: string,
 ): Promise<void> {
   const payload = rawPayload as PlanProposePayload;
 
@@ -307,7 +295,7 @@ async function applyPlanPropose(
   }
 
   await insertAuditEvent({
-    actor: clerkId,
+    actor: userId,
     action: 'plan.apply',
     entityType: 'goal',
     entityId: goal.id,

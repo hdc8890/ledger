@@ -1,9 +1,7 @@
-import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getChatSessionsByUserId } from '@/db/queries/chat-sessions';
 import { ConversationSidebar } from '@/components/chat/conversation-sidebar';
-import type { UserId } from '@/shared/types';
 
 /**
  * Chat layout — wraps all `/chat/*` pages.
@@ -15,13 +13,10 @@ import type { UserId } from '@/shared/types';
  * active sessions via pathname comparison on the client.
  */
 export default async function ChatLayout({ children }: { children: React.ReactNode }) {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
 
-  const user = await findUserByClerkId(clerkId);
-  const sessions = user
-    ? await getChatSessionsByUserId(user.id as UserId)
-    : [];
+  const sessions = await getChatSessionsByUserId(userId);
 
   return (
     <div className="-m-6 flex overflow-hidden" style={{ height: 'calc(100vh - 0px)' }}>

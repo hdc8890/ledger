@@ -1,12 +1,11 @@
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { deleteAllMemories } from '@/db/queries/memories';
 import { insertAuditEvent } from '@/db/queries/audit-events';
 import { deleteMemory, updateMemoryText, listMemories } from '@/ai/memory';
-import type { MemoryId, UserId } from '@/shared/types';
+import type { MemoryId } from '@/shared/types';
 import type { MemoryRow } from '@/db/queries/memories';
 
 export type MemoryActionResult = { error?: string };
@@ -26,16 +25,11 @@ export async function updateMemoryAction(
   memoryId: string,
   newText: string,
 ): Promise<MemoryActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   const trimmed = newText.trim();
   if (!trimmed) return { error: 'Memory text cannot be empty' };
-
-  const userId = user.id as UserId;
 
   try {
     const updated = await updateMemoryText(userId, memoryId as MemoryId, trimmed);
@@ -58,13 +52,8 @@ export async function updateMemoryAction(
  * deleteMemory (ai/memory.ts), which also writes an audit event.
  */
 export async function deleteMemoryAction(memoryId: string): Promise<MemoryActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   try {
     await deleteMemory(userId, memoryId as MemoryId);
@@ -87,20 +76,15 @@ export async function deleteMemoryAction(memoryId: string): Promise<MemoryAction
  * intent before invoking (e.g. via a client-side confirmation prompt).
  */
 export async function clearAllMemoriesAction(): Promise<MemoryActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   try {
     // Count before deletion for the audit trail.
     const existing = await listMemories(userId, undefined, 1000, 0);
     await deleteAllMemories(userId);
     await insertAuditEvent({
-      actor: clerkId,
+      actor: userId,
       action: 'memory.bulk_delete',
       entityType: 'user',
       entityId: userId,
@@ -131,13 +115,9 @@ export async function getMemoriesAction(): Promise<{
   memories?: MemoryRow[];
   error?: string;
 }> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
-
-  const userId = user.id as UserId;
   const memories = await listMemories(userId, undefined, 500, 0);
   return { memories };
 }
