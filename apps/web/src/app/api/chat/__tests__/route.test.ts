@@ -58,7 +58,8 @@ vi.mock('@ai-sdk/anthropic', () => ({
   anthropic: vi.fn(() => 'mock-model'),
 }));
 
-import { POST, buildMemoryContext } from '../route';
+import { POST } from '../route';
+import { buildMemoryContext } from '../memory-context';
 import type { MemoryRow } from '@/db/queries/memories';
 
 const USER = { id: 'user-uuid', clerkId: 'clerk_abc' };
