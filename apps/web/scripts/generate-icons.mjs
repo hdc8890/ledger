@@ -151,5 +151,5 @@ const targets = [
 for (const t of targets) {
   const buf = drawIcon(t.size, t.pad);
   writeFileSync(join(OUT_DIR, t.name), buf);
-  console.log(`wrote ${t.name} (${buf.length} bytes)`);
+  process.stdout.write(`wrote ${t.name} (${buf.length} bytes)\n`);
 }

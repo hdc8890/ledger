@@ -26,6 +26,8 @@ export default defineConfig({
         'src/lib/inngest.ts',
         'src/inngest/index.ts',
         'src/middleware.ts',
+        // Service worker — runs only in the SW context, not unit-testable.
+        'src/app/sw.ts',
         // Generated / config-style.
         'src/db/schema.ts',
         'src/db/migrations/**',
