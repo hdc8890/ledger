@@ -259,7 +259,7 @@ Revalidate affected RSC routes
 | Vector              | pgvector extension                         |
 | ORM                 | Drizzle + Drizzle Kit                      |
 | Validation          | Zod (also drives tool schemas)             |
-| Auth                | Clerk                                      |
+| Auth                | Auth.js (NextAuth) — Google SSO            |
 | Jobs                | Inngest                                    |
 | External            | Plaid                                      |
 | Hosting             | Vercel                                     |

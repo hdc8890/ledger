@@ -426,6 +426,81 @@ Agent derives budgets automatically.
 
 ------------------------------------------------------------------------
 
+## Phase 7 --- Installable PWA
+
+Duration: ~0.5--1 week
+
+Rationale:
+
+Personal/family tool — no App Store distribution needed. A PWA gives
+"Add to Home Screen" install, an app icon, and a standalone (chrome-less)
+window on iOS/Android without a second codebase or rewriting the
+RSC/Server Action data layer.
+
+Build:
+
+-   `app/manifest.ts` (typed web manifest: name, icons, theme, display:
+    standalone)
+-   App icons + maskable icons + Apple touch icons
+-   Service worker via **Serwist** (`next-pwa` is unmaintained)
+-   Offline fallback page; cache static shell, network-first for data
+-   iOS install meta tags (`apple-mobile-web-app-*`)
+
+Out of scope (defer to native if ever needed):
+
+-   Push notifications (iOS requires installed PWA; background jobs run
+    server-side via Inngest so the user pulls updates on open)
+-   Offline-first writes / background sync
+-   Biometric app-lock (Face ID)
+
+Deliverable:
+
+Installable home-screen app on mobile, single Next.js codebase.
+
+------------------------------------------------------------------------
+
+## Phase 8 --- Auth.js Migration (drop Clerk)
+
+Duration: ~0.5--1 week
+
+Rationale:
+
+Remove the one hosted dependency that holds PII. Auth.js runs inside
+the app and stores identity in our own Neon Postgres — no third-party
+auth host. The household uses Google exclusively, so **Google SSO is
+the only provider**: no password storage, no magic-link email/SMTP.
+
+Other hosted services (Neon, Vercel, Inngest, Sentry) are kept
+deliberately — not self-hosting a public-facing app.
+
+Build:
+
+-   Auth.js (NextAuth) with the Google provider + Drizzle adapter
+    (sessions/accounts tables in Postgres)
+-   Replace `clerkMiddleware` with Auth.js middleware; port the
+    public-route matcher
+-   Swap every `auth()` callsite (`@clerk/nextjs/server`) to the
+    Auth.js session helper
+-   Replace user provisioning: the Auth.js adapter creates the user
+    row, so retire `/api/webhooks/clerk` and the dashboard-layout
+    `upsertUserByClerkId` fallback
+-   Migrate `users.clerkId` → provider account identity; keep internal
+    UUID stable so all FKs are untouched
+-   Remove `@clerk/nextjs`, Clerk env vars, and Clerk webhook config
+
+Risks:
+
+-   Existing `users` rows keyed on `clerkId` need a mapping path
+-   Every protected route/action depends on the auth helper — broad
+    but mechanical change surface
+
+Deliverable:
+
+Google SSO via Auth.js; zero Clerk dependency; identity owned in
+Postgres.
+
+------------------------------------------------------------------------
+
 # Deliberately Avoid for MVP
 
 Avoid:

@@ -10,7 +10,7 @@ Updated at the start/end of each phase or significant milestone.
 **Stage:** Active development — Phase 6 complete  
 **Active Phase:** Phase 6 — Goal-Based Planning (**complete**)  
 **Last Completed:** Phase 6 — Goal-Based Planning  
-**Next Phase:** Phase 7 (not yet defined)
+**Next Phase:** Phase 7 — Installable PWA (Phase 8 — Auth.js migration also planned)
 
 ---
 
@@ -24,6 +24,8 @@ Updated at the start/end of each phase or significant milestone.
 | 4 | AI Enrichment | ✅ Done | All 7 tasks complete — merchant normalization, category inference, transfer detection, recurring bill detection, historical backfill, correction UI (/transactions page + CategoryChip + correctCategoryAction + categorization rules + retag), dashboard query transfer exclusion confirmed |
 | 5 | Memory Layer | ✅ Done | All 7 tasks complete — pgvector schema, AI memory helper, agent tools (save/delete/list/retrieve), system prompt injection, auto-extraction Inngest job + "Remember: X?" UI chip, override persistence (correctCategoryAction + approveChangeAction), memory management UI (/settings/memory — list/edit/delete/export/clear-all), privacy guardrails (validateMemoryText) |
 | 6 | Goal-Based Planning | ✅ Done | All 6 tasks complete — goals schema + create_goal tool + /goals UI; budgets schema + propose_plan tool + plan_propose approval; budget review UI (/budgets); nightly goal_progress tracking job (cron, all goal kinds, anomaly detection); get_goal_progress read tool + GoalProgressWidget dashboard card |
+| 7 | Installable PWA | 🔲 Not started | Manifest + icons + Serwist service worker + offline fallback; single codebase, no native app |
+| 8 | Auth.js Migration | 🔲 Not started | Replace Clerk with Auth.js (Google SSO only); identity in own Postgres; update middleware + all `auth()` callsites + Clerk webhook removal |
 
 Status legend: 🔲 Not started · 🔄 In progress · ✅ Done · 🚧 Blocked
 
@@ -40,6 +42,8 @@ These are set. Don't revisit without a strong reason.
 - **Write pattern**: AI writes → `pending_changes` → user approval → `audit_events`
 - **Memory store**: pgvector on same Neon Postgres — no separate vector DB
 - **Out of scope for MVP**: tax optimization, retirement modeling, multi-tenant, native mobile
+- **Auth provider**: **Auth.js (NextAuth) with Google SSO only** — replaces Clerk. Identity lives in our own Postgres; no third-party auth host. Household uses Google exclusively, so no passwords or magic-link email needed.
+- **Hosted services kept**: Neon (DB), Vercel (hosting), Inngest (jobs), Sentry (errors). Deliberately *not* self-hosting a public-facing app — the only hosted dependency being dropped is Clerk. Connecting to the cloud DB during local dev is acceptable (no local Postgres swap).
 
 ---
 
@@ -49,7 +53,7 @@ Things not yet settled, to be resolved before or during the relevant phase.
 
 | Decision | Needed By | Notes |
 |----------|-----------|-------|
-| Auth.js vs Clerk | Phase 1 Task 2 | ~~Clerk preferred for speed; Auth.js if vendor concern outweighs DX~~ **Resolved: Clerk** |
+| Auth.js vs Clerk | Phase 1 Task 2 | ~~Clerk preferred for speed~~ → **Reversed: migrating to Auth.js (Google SSO only)** to drop a hosted PII dependency. See Decisions Locked + Phase 8. |
 | Plaid Sandbox → Production timing | Phase 1 | Apply for Production access early (days of lead time) |
 | ~~Category taxonomy (leaf count)~~ | ~~Phase 4~~ | **Resolved: 25-leaf taxonomy** — see `categorize.ts` `CATEGORY_TAXONOMY` |
 

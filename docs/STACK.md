@@ -51,8 +51,13 @@ Drizzle over Prisma because finance queries are SQL-shaped (CTEs,
 window functions, aggregations). SQL transparency matters here.
 
 ### Auth
-**Clerk** — social + magic links, trivial Next.js integration.
-Alternative: Auth.js if you want no vendor dependency.
+**Auth.js (NextAuth)** — self-contained in the app; identity stored
+in our own Postgres (no third-party auth host). **Google SSO is the
+only provider for MVP** (the household uses Google exclusively), which
+avoids password storage and magic-link email/SMTP entirely.
+
+> Migrated from Clerk to drop a hosted dependency that held PII. See
+> `docs/STATUS.md` → Decisions Locked.
 
 ### AI
 | Concern | Choice |
