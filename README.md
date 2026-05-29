@@ -42,14 +42,14 @@ Your banks (via Plaid) → normalized transaction data
 - **AI** — Vercel AI SDK · Claude Sonnet · GPT-4o-mini · pgvector memory
 - **Data** — Postgres on Neon · Drizzle ORM · Plaid
 - **Jobs** — Inngest
-- **Auth** — Clerk
+- **Auth** — Auth.js (NextAuth) · Google SSO
 - **Hosting** — Vercel
 
 ---
 
 ## Status
 
-Early development. See [`docs/STATUS.md`](./docs/STATUS.md) for current
+Phases 1–6 complete (Foundation → Goal-Based Planning). See [`docs/STATUS.md`](./docs/STATUS.md) for current
 phase and progress.
 
 ---
@@ -60,7 +60,7 @@ phase and progress.
 
 - [Node.js](https://nodejs.org/) 20+ and [pnpm](https://pnpm.io/) (`npm i -g pnpm`)
 - A [Neon](https://neon.tech) Postgres project (pgvector is available by default)
-- [Clerk](https://clerk.com) app for auth
+- A Google Cloud project with OAuth 2.0 credentials (for Auth.js)
 - [Plaid](https://plaid.com) sandbox credentials
 - An LLM provider (see §5 below — zero-cost path available)
 
@@ -86,13 +86,13 @@ cp apps/web/.env.example apps/web/.env.local
 
 ---
 
-### 3. Clerk auth
+### 3. Google OAuth credentials
 
-1. Create an app at [dashboard.clerk.com](https://dashboard.clerk.com).
-2. Under **API Keys**, copy values into `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`.
-3. **Webhook (optional for local dev):** The app auto-provisions user rows on first
-   sign-in, so you can skip the webhook during local development. It becomes
-   required if you want Clerk events forwarded in staging/prod — see §8.
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) → **APIs & Services → Credentials**.
+2. Create an **OAuth 2.0 Client ID** (Web application).
+3. Add `http://localhost:3000/api/auth/callback/google` as an authorized redirect URI.
+4. Copy **Client ID** → `AUTH_GOOGLE_ID` and **Client Secret** → `AUTH_GOOGLE_SECRET`.
+5. Set `AUTH_SECRET` to any random string (e.g. `openssl rand -base64 32`).
 
 ---
 
@@ -169,9 +169,9 @@ Your user row is provisioned automatically on first page load.
 
 ---
 
-### 8. Webhook tunnel (Plaid sync + Clerk events)
+### 8. Webhook tunnel (Plaid sync)
 
-Plaid transaction sync and the Clerk `user.created` event require a public URL.
+Plaid transaction sync requires a public URL to deliver webhook events.
 This is **optional for initial local setup** — the chat agent, dashboards, and
 manual Plaid Link flow all work without it.
 
@@ -185,10 +185,9 @@ cloudflared tunnel --url http://localhost:3000
 
 Register the HTTPS tunnel URL in:
 
-| Service | Path | Env var |
-|---------|------|---------|
-| **Plaid** dashboard → Webhooks | `<tunnel>/api/plaid/webhook` | — |
-| **Clerk** dashboard → Webhooks | `<tunnel>/api/webhooks/clerk` | `CLERK_WEBHOOK_SECRET` |
+| Service | Path |
+|---------|------|
+| **Plaid** dashboard → Webhooks | `<tunnel>/api/plaid/webhook` |
 
 ---
 
