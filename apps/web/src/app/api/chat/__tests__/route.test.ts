@@ -4,12 +4,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mocks set up with vi.hoisted so they are ready before vi.mock factories.
 // ---------------------------------------------------------------------------
 const {
-  mockAuth, mockFindUser, mockGetSession, mockCreateSession, mockInsertMessage,
+  mockGetCurrentUserId, mockGetSession, mockCreateSession, mockInsertMessage,
   mockTouchSession, mockStreamText, mockConvertMessages, mockLogLlmCall,
   mockUpdateTitle, mockGenerateText, mockCheckRateLimit, mockRetrieveMemories,
 } = vi.hoisted(() => {
-  const mockAuth = vi.fn();
-  const mockFindUser = vi.fn();
+  const mockGetCurrentUserId = vi.fn();
   const mockGetSession = vi.fn();
   const mockCreateSession = vi.fn();
   const mockInsertMessage = vi.fn();
@@ -22,15 +21,14 @@ const {
   const mockCheckRateLimit = vi.fn();
   const mockRetrieveMemories = vi.fn();
   return {
-    mockAuth, mockFindUser, mockGetSession, mockCreateSession,
+    mockGetCurrentUserId, mockGetSession, mockCreateSession,
     mockInsertMessage, mockTouchSession, mockStreamText, mockConvertMessages,
     mockLogLlmCall, mockUpdateTitle, mockGenerateText, mockCheckRateLimit,
     mockRetrieveMemories,
   };
 });
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: mockAuth }));
-vi.mock('@/db/queries/users', () => ({ findUserByClerkId: mockFindUser }));
+vi.mock('@/lib/auth-helpers', () => ({ getCurrentUserId: mockGetCurrentUserId }));
 vi.mock('@/db/queries/chat-sessions', () => ({
   getChatSessionById: mockGetSession,
   createChatSession: mockCreateSession,
@@ -62,9 +60,9 @@ import { POST } from '../route';
 import { buildMemoryContext } from '../memory-context';
 import type { MemoryRow } from '@/db/queries/memories';
 
-const USER = { id: 'user-uuid', clerkId: 'clerk_abc' };
+const USER_ID = 'user-uuid';
 const SESSION_ID = '550e8400-e29b-41d4-a716-446655440000';
-const SESSION = { id: SESSION_ID, userId: 'user-uuid', title: null, createdAt: new Date(), updatedAt: new Date() };
+const SESSION = { id: SESSION_ID, userId: USER_ID, title: null, createdAt: new Date(), updatedAt: new Date() };
 
 function makeRequest(body: unknown): Request {
   return new Request('http://localhost/api/chat', {
@@ -89,7 +87,7 @@ describe('POST /api/chat', () => {
   });
 
   it('returns 401 when unauthenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
 
     const res = await POST(makeRequest({}));
 
@@ -97,8 +95,7 @@ describe('POST /api/chat', () => {
   });
 
   it('returns 400 when body is missing id', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
 
     const res = await POST(makeRequest({ messages: [] }));
 
@@ -106,26 +103,15 @@ describe('POST /api/chat', () => {
   });
 
   it('returns 400 when body id is not a UUID', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
 
     const res = await POST(makeRequest({ id: 'not-a-uuid', messages: [] }));
 
     expect(res.status).toBe(400);
   });
 
-  it('returns 404 when user is not in DB', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(undefined);
-
-    const res = await POST(makeRequest({ id: crypto.randomUUID(), messages: [] }));
-
-    expect(res.status).toBe(404);
-  });
-
   it('creates a new session if one does not exist', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(undefined);
     mockCreateSession.mockResolvedValue(SESSION);
     mockInsertMessage.mockResolvedValue({});
@@ -141,8 +127,7 @@ describe('POST /api/chat', () => {
   });
 
   it('returns 403 when session belongs to a different user', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue({ ...SESSION, userId: 'other-user-uuid' });
 
     const res = await POST(makeRequest({
@@ -154,8 +139,7 @@ describe('POST /api/chat', () => {
   });
 
   it('calls streamText and returns the streaming response', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(SESSION);
     mockInsertMessage.mockResolvedValue({});
     const mockResponse = new Response('stream', { status: 200 });
@@ -174,8 +158,7 @@ describe('POST /api/chat', () => {
   });
 
   it('triggers title generation on first user message when session has no title', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(SESSION); // title: null
     mockInsertMessage.mockResolvedValue({});
     mockGenerateText.mockResolvedValue({ text: 'My Spending Question' });
@@ -198,8 +181,7 @@ describe('POST /api/chat', () => {
   });
 
   it('does not trigger title generation on follow-up messages', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(SESSION);
     mockInsertMessage.mockResolvedValue({});
     const mockResponse = new Response('stream', { status: 200 });
@@ -221,8 +203,7 @@ describe('POST /api/chat', () => {
   });
 
   it('does not trigger title generation when session already has a title', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue({ ...SESSION, title: 'Existing Title' });
     mockInsertMessage.mockResolvedValue({});
     const mockResponse = new Response('stream', { status: 200 });
@@ -239,8 +220,7 @@ describe('POST /api/chat', () => {
   });
 
   it('logs tool call names to logLlmCall when tools were invoked', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(SESSION);
     mockInsertMessage.mockResolvedValue({});
 
@@ -274,8 +254,7 @@ describe('POST /api/chat', () => {
   });
 
   it('passes toolCalls: null to logLlmCall when no tools were invoked', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(SESSION);
     mockInsertMessage.mockResolvedValue({});
 
@@ -302,8 +281,7 @@ describe('POST /api/chat', () => {
   });
 
   it('returns 429 with friendly message when rate limit is exhausted', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockCheckRateLimit.mockResolvedValue({ allowed: false, retryAfterSeconds: 3600 });
 
     const res = await POST(makeRequest({
@@ -319,14 +297,13 @@ describe('POST /api/chat', () => {
   });
 
   it('injects Relevant Context into the system prompt when memories exist', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(SESSION);
     mockInsertMessage.mockResolvedValue({});
     mockRetrieveMemories.mockResolvedValue([
       {
         id: 'mem-1',
-        userId: 'user-uuid',
+        userId: USER_ID,
         kind: 'preference',
         text: 'Costco should be Groceries',
         embedding: null,
@@ -352,8 +329,7 @@ describe('POST /api/chat', () => {
   });
 
   it('does not inject Relevant Context when no memories are returned', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(SESSION);
     mockInsertMessage.mockResolvedValue({});
     mockRetrieveMemories.mockResolvedValue([]); // no memories
@@ -370,8 +346,7 @@ describe('POST /api/chat', () => {
   });
 
   it('succeeds without memory context when retrieveMemories throws', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetSession.mockResolvedValue(SESSION);
     mockInsertMessage.mockResolvedValue({});
     mockRetrieveMemories.mockRejectedValueOnce(new Error('OpenAI embedding API down'));
@@ -398,7 +373,7 @@ describe('buildMemoryContext', () => {
   function makeMemory(overrides: Partial<MemoryRow> = {}): MemoryRow {
     return {
       id: 'mem-1',
-      userId: 'user-uuid',
+      userId: USER_ID,
       kind: 'preference',
       text: 'Costco should be Groceries',
       embedding: null,

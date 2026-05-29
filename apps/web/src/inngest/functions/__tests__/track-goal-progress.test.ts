@@ -64,7 +64,10 @@ function makeStep() {
 const USER_ID = 'user-uuid-1' as UserId;
 const FAKE_USER = {
   id: USER_ID,
-  clerkId: 'clerk-1',
+  name: null,
+  email: 'test@example.com',
+  emailVerified: null,
+  image: null,
   settings: {},
   householdId: null,
   createdAt: new Date(),
@@ -413,7 +416,7 @@ describe('handleTrackGoalProgress', () => {
   });
 
   it('processes each user as a separate step with unique step IDs', async () => {
-    const user2 = { ...FAKE_USER, id: 'user-uuid-2' as UserId, clerkId: 'clerk-2' };
+    const user2 = { ...FAKE_USER, id: 'user-uuid-2' as UserId };
     mockGetAllUsers.mockResolvedValue([FAKE_USER, user2]);
     mockGetActiveGoalsByUserId.mockResolvedValue([]);
 
@@ -429,7 +432,7 @@ describe('handleTrackGoalProgress', () => {
   });
 
   it('aggregates goalsTracked and anomalyCount across users', async () => {
-    const user2 = { ...FAKE_USER, id: 'user-uuid-2' as UserId, clerkId: 'clerk-2' };
+    const user2 = { ...FAKE_USER, id: 'user-uuid-2' as UserId };
     mockGetAllUsers.mockResolvedValue([FAKE_USER, user2]);
 
     const goal = makeGoal({ kind: 'save_for', targetAmountCents: null });
@@ -444,7 +447,7 @@ describe('handleTrackGoalProgress', () => {
   });
 
   it('handles partial failure — some users ok, some failed', async () => {
-    const user2 = { ...FAKE_USER, id: 'user-uuid-2' as UserId, clerkId: 'clerk-2' };
+    const user2 = { ...FAKE_USER, id: 'user-uuid-2' as UserId };
     mockGetAllUsers.mockResolvedValue([FAKE_USER, user2]);
 
     // First user: no goals (success). Second user: throws.

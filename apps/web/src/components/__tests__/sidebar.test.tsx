@@ -26,9 +26,8 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@clerk/nextjs', () => ({
-  UserButton: () => <button type="button">User menu</button>,
-  useUser: () => ({ user: { firstName: 'Alice', emailAddresses: [] } }),
+vi.mock('@/components/sign-out-button', () => ({
+  SignOutButton: () => <button type="button">Sign out</button>,
 }));
 
 import { Sidebar } from '../sidebar';
@@ -36,7 +35,7 @@ import { Sidebar } from '../sidebar';
 describe('Sidebar', () => {
   it('renders all eight nav items', () => {
     mockPathname.value = '/dashboard';
-    render(<Sidebar />);
+    render(<Sidebar displayName="Alice" />);
     expect(screen.getByRole('link', { name: /net worth/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /cash flow/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /transactions/i })).toBeInTheDocument();
@@ -49,7 +48,7 @@ describe('Sidebar', () => {
 
   it('marks the current route with aria-current="page"', () => {
     mockPathname.value = '/dashboard';
-    render(<Sidebar />);
+    render(<Sidebar displayName="Alice" />);
     expect(screen.getByRole('link', { name: /net worth/i })).toHaveAttribute(
       'aria-current',
       'page',
@@ -59,14 +58,14 @@ describe('Sidebar', () => {
 
   it('marks a nested route as active', () => {
     mockPathname.value = '/chat/session-abc';
-    render(<Sidebar />);
+    render(<Sidebar displayName="Alice" />);
     expect(screen.getByRole('link', { name: /chat/i })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: /net worth/i })).not.toHaveAttribute('aria-current');
   });
 
   it('does not mark unrelated routes as active', () => {
     mockPathname.value = '/settings';
-    render(<Sidebar />);
+    render(<Sidebar displayName="Alice" />);
     expect(screen.getByRole('link', { name: /net worth/i })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: /chat/i })).not.toHaveAttribute('aria-current');
     expect(screen.getByRole('link', { name: /settings/i })).toHaveAttribute(
@@ -77,7 +76,8 @@ describe('Sidebar', () => {
 
   it('renders the user display name', () => {
     mockPathname.value = '/dashboard';
-    render(<Sidebar />);
+    render(<Sidebar displayName="Alice" />);
     expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
   });
 });

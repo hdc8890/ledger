@@ -5,8 +5,7 @@ import type { UserId, PendingChangeId } from '@/shared/types';
 // Mocks (hoisted — must be before imports of the module under test)
 // ---------------------------------------------------------------------------
 const {
-  mockAuth,
-  mockFindUser,
+  mockGetCurrentUserId,
   mockGetProposal,
   mockApplyProposal,
   mockRejectProposal,
@@ -20,8 +19,7 @@ const {
   mockRevalidate,
   mockSaveMemory,
 } = vi.hoisted(() => ({
-  mockAuth: vi.fn(),
-  mockFindUser: vi.fn(),
+  mockGetCurrentUserId: vi.fn(),
   mockGetProposal: vi.fn(),
   mockApplyProposal: vi.fn(),
   mockRejectProposal: vi.fn(),
@@ -36,9 +34,8 @@ const {
   mockSaveMemory: vi.fn(),
 }));
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: mockAuth }));
 vi.mock('next/cache', () => ({ revalidatePath: mockRevalidate }));
-vi.mock('@/db/queries/users', () => ({ findUserByClerkId: mockFindUser }));
+vi.mock('@/lib/auth-helpers', () => ({ getCurrentUserId: mockGetCurrentUserId }));
 vi.mock('@/db/queries/pending-changes', () => ({
   getPendingChangeById: mockGetProposal,
   applyPendingChange: mockApplyProposal,
@@ -72,8 +69,7 @@ import { approveChangeAction, rejectChangeAction } from '../pending-changes';
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
-const CLERK_ID = 'clerk_test_user';
-const USER = { id: 'user-uuid-001' as UserId, clerkId: CLERK_ID };
+const USER = { id: 'user-uuid-001' as UserId };
 const PROPOSAL_ID = 'proposal-uuid-001' as PendingChangeId;
 
 const BASE_PROPOSAL = {
@@ -142,41 +138,31 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 describe('approveChangeAction — guards', () => {
   it('returns error when unauthenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
     expect(await approveChangeAction(PROPOSAL_ID)).toEqual({ error: 'Unauthorized' });
     expect(mockDbTransaction).not.toHaveBeenCalled();
   });
 
-  it('returns error when user not in DB', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(undefined);
-    expect(await approveChangeAction(PROPOSAL_ID)).toEqual({ error: 'User not found' });
-  });
-
   it('returns error when proposal not found', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue(undefined);
     expect(await approveChangeAction(PROPOSAL_ID)).toEqual({ error: 'Proposal not found' });
   });
 
   it('returns Forbidden when proposal belongs to another user', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue({ ...BASE_PROPOSAL, userId: 'other-user' });
     expect(await approveChangeAction(PROPOSAL_ID)).toEqual({ error: 'Forbidden' });
   });
 
   it('returns error when proposal is already applied', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue({ ...BASE_PROPOSAL, status: 'applied' });
     expect(await approveChangeAction(PROPOSAL_ID)).toEqual({ error: 'Proposal already resolved' });
   });
 
   it('returns error when proposal is already rejected', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue({ ...BASE_PROPOSAL, status: 'rejected' });
     expect(await approveChangeAction(PROPOSAL_ID)).toEqual({ error: 'Proposal already resolved' });
   });
@@ -187,8 +173,7 @@ describe('approveChangeAction — guards', () => {
 // ---------------------------------------------------------------------------
 describe('approveChangeAction — asset_update', () => {
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue(BASE_PROPOSAL);
     mockGetAsset.mockResolvedValue(ASSET);
     mockUpdateAsset.mockResolvedValue({ ...ASSET, valueCents: 4800000n });
@@ -208,7 +193,7 @@ describe('approveChangeAction — asset_update', () => {
       }),
     );
     expect(mockInsertAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'asset.update', source: 'user', actor: CLERK_ID }),
+      expect.objectContaining({ action: 'asset.update', source: 'user', actor: USER.id }),
     );
     expect(mockApplyProposal).toHaveBeenCalledWith(PROPOSAL_ID, expect.any(Date));
     expect(mockSaveMemory).toHaveBeenCalledWith(
@@ -251,8 +236,7 @@ describe('approveChangeAction — txn_tag', () => {
   };
 
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue(txnProposal);
     mockGetTxn.mockResolvedValue(TXN);
     mockUpdateTxnCategory.mockResolvedValue({ ...TXN, category: 'Groceries' });
@@ -300,8 +284,7 @@ describe('approveChangeAction — rule_create', () => {
   };
 
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue(ruleProposal);
     mockInsertRule.mockResolvedValue(insertedRule);
   });
@@ -330,8 +313,7 @@ describe('approveChangeAction — rule_create', () => {
 // ---------------------------------------------------------------------------
 describe('approveChangeAction — unknown kind', () => {
   it('returns error for unknown proposal kind', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue({ ...BASE_PROPOSAL, kind: 'unknown_kind' });
     const result = await approveChangeAction(PROPOSAL_ID);
     expect(result.error).toMatch(/Unknown proposal kind/);
@@ -343,21 +325,19 @@ describe('approveChangeAction — unknown kind', () => {
 // ---------------------------------------------------------------------------
 describe('rejectChangeAction', () => {
   it('returns error when unauthenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
     expect(await rejectChangeAction(PROPOSAL_ID)).toEqual({ error: 'Unauthorized' });
   });
 
   it('returns Forbidden when proposal belongs to another user', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue({ ...BASE_PROPOSAL, userId: 'other-user' });
     expect(await rejectChangeAction(PROPOSAL_ID)).toEqual({ error: 'Forbidden' });
     expect(mockRejectProposal).not.toHaveBeenCalled();
   });
 
   it('marks the proposal rejected and does not touch live tables', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue(BASE_PROPOSAL);
 
     const result = await rejectChangeAction(PROPOSAL_ID);
@@ -371,8 +351,7 @@ describe('rejectChangeAction', () => {
   });
 
   it('returns error when proposal is already resolved', async () => {
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposal.mockResolvedValue({ ...BASE_PROPOSAL, status: 'rejected' });
     expect(await rejectChangeAction(PROPOSAL_ID)).toEqual({ error: 'Proposal already resolved' });
   });

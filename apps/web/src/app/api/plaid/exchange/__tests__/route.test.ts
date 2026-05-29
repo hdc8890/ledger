@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const {
-  mockAuth,
-  mockFindUser,
+  mockGetCurrentUserId,
   mockInsertItem,
   mockUpsertAccount,
   mockInsertAudit,
@@ -10,8 +9,7 @@ const {
   mockExchange,
   mockAccountsGet,
 } = vi.hoisted(() => {
-  const mockAuth = vi.fn();
-  const mockFindUser = vi.fn();
+  const mockGetCurrentUserId = vi.fn();
   const mockInsertItem = vi.fn();
   const mockUpsertAccount = vi.fn();
   const mockInsertAudit = vi.fn();
@@ -19,8 +17,7 @@ const {
   const mockExchange = vi.fn();
   const mockAccountsGet = vi.fn();
   return {
-    mockAuth,
-    mockFindUser,
+    mockGetCurrentUserId,
     mockInsertItem,
     mockUpsertAccount,
     mockInsertAudit,
@@ -30,8 +27,7 @@ const {
   };
 });
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: mockAuth }));
-vi.mock('@/db/queries/users', () => ({ findUserByClerkId: mockFindUser }));
+vi.mock('@/lib/auth-helpers', () => ({ getCurrentUserId: mockGetCurrentUserId }));
 vi.mock('@/db/queries/plaid-items', () => ({ insertPlaidItem: mockInsertItem }));
 vi.mock('@/db/queries/accounts', () => ({ upsertAccount: mockUpsertAccount }));
 vi.mock('@/db/queries/audit-events', () => ({ insertAuditEvent: mockInsertAudit }));
@@ -56,11 +52,11 @@ const validBody = {
   institutionName: 'Test Bank',
 };
 
-const mockUser = { id: 'user-uuid', clerkId: 'clerk_abc' };
+const USER_ID = 'user-uuid';
 
 const mockItem = {
   id: 'item-uuid',
-  userId: 'user-uuid',
+  userId: USER_ID,
   accessTokenEnc: 'enc-token',
   plaidItemId: 'plaid-item-abc',
   institutionId: 'ins_1',
@@ -93,19 +89,19 @@ describe('POST /api/plaid/exchange', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns 401 when not authenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
     const res = await POST(makeRequest(validBody));
     expect(res.status).toBe(401);
   });
 
   it('returns 400 when body is missing required fields', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     const res = await POST(makeRequest({ publicToken: 'tok' })); // missing institutionId/Name
     expect(res.status).toBe(400);
   });
 
   it('returns 400 when body is not valid JSON', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     const req = new Request('http://localhost/api/plaid/exchange', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -115,16 +111,8 @@ describe('POST /api/plaid/exchange', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 404 when user row does not exist', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(undefined);
-    const res = await POST(makeRequest(validBody));
-    expect(res.status).toBe(404);
-  });
-
   it('happy path: returns itemId and accounts, writes audit event', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(mockUser);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-xyz', item_id: 'plaid-item-abc' } });
     mockEncrypt.mockResolvedValue('encrypted-token');
     mockInsertItem.mockResolvedValue(mockItem);
@@ -148,6 +136,7 @@ describe('POST /api/plaid/exchange', () => {
       expect.objectContaining({
         action: 'plaid.connect',
         source: 'user',
+        actor: USER_ID,
         entityId: 'item-uuid',
       }),
     );
@@ -162,8 +151,7 @@ describe('POST /api/plaid/exchange', () => {
   });
 
   it('returns 500 when accountsGet fails after successful exchange (access token must not leak)', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(mockUser);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-secret', item_id: 'plaid-item-abc' } });
     mockEncrypt.mockResolvedValue('encrypted-token');
     mockInsertItem.mockResolvedValue(mockItem);
@@ -177,8 +165,7 @@ describe('POST /api/plaid/exchange', () => {
   });
 
   it('returns 500 when insertAuditEvent fails (access token must not leak)', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(mockUser);
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockExchange.mockResolvedValue({ data: { access_token: 'access-sandbox-secret', item_id: 'plaid-item-abc' } });
     mockEncrypt.mockResolvedValue('encrypted-token');
     mockInsertItem.mockResolvedValue(mockItem);

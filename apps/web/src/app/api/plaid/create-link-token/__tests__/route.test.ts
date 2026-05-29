@@ -1,14 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockAuth, mockFindUser, mockLinkTokenCreate } = vi.hoisted(() => {
-  const mockAuth = vi.fn();
-  const mockFindUser = vi.fn();
+const { mockGetCurrentUserId, mockLinkTokenCreate } = vi.hoisted(() => {
+  const mockGetCurrentUserId = vi.fn();
   const mockLinkTokenCreate = vi.fn();
-  return { mockAuth, mockFindUser, mockLinkTokenCreate };
+  return { mockGetCurrentUserId, mockLinkTokenCreate };
 });
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: mockAuth }));
-vi.mock('@/db/queries/users', () => ({ findUserByClerkId: mockFindUser }));
+vi.mock('@/lib/auth-helpers', () => ({ getCurrentUserId: mockGetCurrentUserId }));
 vi.mock('@/lib/plaid', () => ({
   plaidClient: { linkTokenCreate: mockLinkTokenCreate },
 }));
@@ -19,21 +17,13 @@ describe('POST /api/plaid/create-link-token', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns 401 when not authenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
     const res = await POST();
     expect(res.status).toBe(401);
   });
 
-  it('returns 404 when user row does not exist', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(undefined);
-    const res = await POST();
-    expect(res.status).toBe(404);
-  });
-
   it('returns link_token on success', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue({ id: 'user-uuid', clerkId: 'clerk_abc' });
+    mockGetCurrentUserId.mockResolvedValue('user-uuid');
     mockLinkTokenCreate.mockResolvedValue({ data: { link_token: 'link-sandbox-123' } });
 
     const res = await POST();
@@ -47,8 +37,7 @@ describe('POST /api/plaid/create-link-token', () => {
   });
 
   it('returns 500 when Plaid throws', async () => {
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue({ id: 'user-uuid', clerkId: 'clerk_abc' });
+    mockGetCurrentUserId.mockResolvedValue('user-uuid');
     mockLinkTokenCreate.mockRejectedValue(new Error('Plaid error'));
 
     const res = await POST();

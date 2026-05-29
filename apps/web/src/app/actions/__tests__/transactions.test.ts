@@ -5,8 +5,7 @@ import type { UserId, TransactionId } from '@/shared/types';
 // Mocks (hoisted)
 // ---------------------------------------------------------------------------
 const {
-  mockAuth,
-  mockFindUser,
+  mockGetCurrentUserId,
   mockGetTxn,
   mockUpdateTxnCategory,
   mockInsertRule,
@@ -16,8 +15,7 @@ const {
   mockRevalidate,
   mockSaveMemory,
 } = vi.hoisted(() => ({
-  mockAuth: vi.fn(),
-  mockFindUser: vi.fn(),
+  mockGetCurrentUserId: vi.fn(),
   mockGetTxn: vi.fn(),
   mockUpdateTxnCategory: vi.fn(),
   mockInsertRule: vi.fn(),
@@ -28,9 +26,8 @@ const {
   mockSaveMemory: vi.fn(),
 }));
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: mockAuth }));
+vi.mock('@/lib/auth-helpers', () => ({ getCurrentUserId: mockGetCurrentUserId }));
 vi.mock('next/cache', () => ({ revalidatePath: mockRevalidate }));
-vi.mock('@/db/queries/users', () => ({ findUserByClerkId: mockFindUser }));
 vi.mock('@/db/queries/transactions', () => ({
   getTransactionById: mockGetTxn,
   updateTransactionCategory: mockUpdateTxnCategory,
@@ -56,7 +53,6 @@ import { correctCategoryAction } from '../transactions';
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
-const CLERK_ID = 'clerk_test_user';
 const USER_ID = 'user-uuid-001' as UserId;
 const TXN_ID = 'txn-uuid-001' as TransactionId;
 
@@ -76,8 +72,7 @@ const SAMPLE_TXN = {
 describe('correctCategoryAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue({ userId: CLERK_ID });
-    mockFindUser.mockResolvedValue({ id: USER_ID, clerkId: CLERK_ID });
+    mockGetCurrentUserId.mockResolvedValue(USER_ID);
     mockGetTxn.mockResolvedValue(SAMPLE_TXN);
     mockDbTransaction.mockImplementation((fn: (tx: unknown) => Promise<void>) => fn({}));
     mockUpdateTxnCategory.mockResolvedValue({ ...SAMPLE_TXN, category: 'Streaming & Subscriptions', categorySource: 'user' });
@@ -102,7 +97,7 @@ describe('correctCategoryAction', () => {
     expect(mockRetagMerchant).toHaveBeenCalledWith(USER_ID, 'Netflix', 'Streaming & Subscriptions');
     expect(mockInsertAudit).toHaveBeenCalledWith(
       expect.objectContaining({
-        actor: CLERK_ID,
+        actor: USER_ID,
         action: 'txn.category_correct',
         entityType: 'transaction',
         entityId: TXN_ID,
@@ -136,7 +131,7 @@ describe('correctCategoryAction', () => {
   });
 
   it('returns error when unauthenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
     const result = await correctCategoryAction(TXN_ID, 'Groceries');
     expect(result).toEqual({ error: 'Unauthorized' });
     expect(mockDbTransaction).not.toHaveBeenCalled();
