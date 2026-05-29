@@ -7,10 +7,10 @@ Updated at the start/end of each phase or significant milestone.
 
 ## Current State
 
-**Stage:** Active development — Phase 6 complete  
-**Active Phase:** Phase 6 — Goal-Based Planning (**complete**)  
-**Last Completed:** Phase 6 — Goal-Based Planning  
-**Next Phase:** Phase 7 — Installable PWA (Phase 8 — Auth.js migration also planned)
+**Stage:** Active development — Phase 7 complete  
+**Active Phase:** Phase 7 — Installable PWA (**complete**)  
+**Last Completed:** Phase 7 — Installable PWA  
+**Next Phase:** Phase 8 — Auth.js migration
 
 ---
 
@@ -24,7 +24,7 @@ Updated at the start/end of each phase or significant milestone.
 | 4 | AI Enrichment | ✅ Done | All 7 tasks complete — merchant normalization, category inference, transfer detection, recurring bill detection, historical backfill, correction UI (/transactions page + CategoryChip + correctCategoryAction + categorization rules + retag), dashboard query transfer exclusion confirmed |
 | 5 | Memory Layer | ✅ Done | All 7 tasks complete — pgvector schema, AI memory helper, agent tools (save/delete/list/retrieve), system prompt injection, auto-extraction Inngest job + "Remember: X?" UI chip, override persistence (correctCategoryAction + approveChangeAction), memory management UI (/settings/memory — list/edit/delete/export/clear-all), privacy guardrails (validateMemoryText) |
 | 6 | Goal-Based Planning | ✅ Done | All 6 tasks complete — goals schema + create_goal tool + /goals UI; budgets schema + propose_plan tool + plan_propose approval; budget review UI (/budgets); nightly goal_progress tracking job (cron, all goal kinds, anomaly detection); get_goal_progress read tool + GoalProgressWidget dashboard card |
-| 7 | Installable PWA | 🔲 Not started | Manifest + icons + Serwist service worker + offline fallback; single codebase, no native app |
+| 7 | Installable PWA | ✅ Done | All build items complete — typed app/manifest.ts, app/maskable/Apple-touch icons, Serwist service worker (precache + runtime cache + navigation preload), /~offline fallback page, iOS install meta tags via Metadata API. Push/offline-writes/biometric-lock deferred per roadmap |
 | 8 | Auth.js Migration | 🔲 Not started | Replace Clerk with Auth.js (Google SSO only); identity in own Postgres; update middleware + all `auth()` callsites + Clerk webhook removal |
 
 Status legend: 🔲 Not started · 🔄 In progress · ✅ Done · 🚧 Blocked
