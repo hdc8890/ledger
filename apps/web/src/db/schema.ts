@@ -14,6 +14,7 @@ import {
   unique,
   index,
   uniqueIndex,
+  primaryKey,
   customType,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -100,12 +101,20 @@ export const liabilityKindEnum = pgEnum('liability_kind', [
 
 // ---------------------------------------------------------------------------
 // users
-// Top-level identity row, keyed on Clerk's user ID.
-// Created via the /api/webhooks/clerk handler on first sign-in.
+// Top-level identity row. Identity is owned in our own Postgres via Auth.js
+// (NextAuth) — the Drizzle adapter creates this row on first Google sign-in.
+// `id` (uuid) is the stable internal key all other tables reference; it never
+// changes, so swapping the auth provider leaves every FK intact.
+//
+// The name/email/emailVerified/image columns are required by the Auth.js
+// Drizzle adapter (property keys must match its AdapterUser shape).
 // ---------------------------------------------------------------------------
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
-  clerkId: text('clerk_id').notNull().unique(),
+  name: text('name'),
+  email: text('email').unique(),
+  emailVerified: timestamp('email_verified', { withTimezone: true, mode: 'date' }),
+  image: text('image'),
   /** Household the user belongs to — null until household is created. */
   householdId: uuid('household_id'),
   /** Feature flags and preferences: { flags: Record<string, boolean>, timezone: string } */
@@ -113,6 +122,55 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Auth.js (NextAuth) adapter tables — accounts / sessions / verification_tokens.
+// Property keys (userId, providerAccountId, sessionToken, …) must match the
+// adapter's expectations; DB column names follow our snake_case convention.
+// Database session strategy: sessions live here in Postgres, not a JWT.
+// ---------------------------------------------------------------------------
+export const authAccounts = pgTable(
+  'auth_accounts',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    provider: text('provider').notNull(),
+    providerAccountId: text('provider_account_id').notNull(),
+    refresh_token: text('refresh_token'),
+    access_token: text('access_token'),
+    expires_at: integer('expires_at'),
+    token_type: text('token_type'),
+    scope: text('scope'),
+    id_token: text('id_token'),
+    session_state: text('session_state'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (account) => [
+    primaryKey({ columns: [account.provider, account.providerAccountId] }),
+  ],
+);
+
+export const authSessions = pgTable('auth_sessions', {
+  sessionToken: text('session_token').primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  expires: timestamp('expires', { withTimezone: true, mode: 'date' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Ephemeral rows consumed on use — no created_at/updated_at by design.
+export const authVerificationTokens = pgTable(
+  'auth_verification_tokens',
+  {
+    identifier: text('identifier').notNull(),
+    token: text('token').notNull(),
+    expires: timestamp('expires', { withTimezone: true, mode: 'date' }).notNull(),
+  },
+  (vt) => [primaryKey({ columns: [vt.identifier, vt.token] })],
+);
 
 // ---------------------------------------------------------------------------
 // plaid_items
@@ -240,7 +298,7 @@ export const auditEvents = pgTable(
   'audit_events',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    /** Clerk user ID, 'system', or 'ai'. */
+    /** Internal user UUID, 'system', or 'ai'. */
     actor: text('actor').notNull(),
     /** Dot-separated action: 'plaid.connect', 'txn.tag', 'asset.update', … */
     action: text('action').notNull(),
