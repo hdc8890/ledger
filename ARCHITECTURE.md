@@ -115,7 +115,8 @@ Not exhaustive — see `packages/db/schema.ts` for the source of
 truth. Logical grouping:
 
 **Identity & connections**
-- `users(id, clerk_id, household_id, settings jsonb)`
+- `users(id, name, email, email_verified, image, household_id, settings jsonb)` — identity owned via the Auth.js Drizzle adapter (Google SSO)
+- `auth_accounts` / `auth_sessions` / `auth_verification_tokens` — Auth.js adapter tables (database session strategy)
 - `plaid_items(id, user_id, access_token_enc, institution, status, cursor)`
 
 **Accounts & transactions**
