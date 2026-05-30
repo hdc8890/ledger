@@ -1,11 +1,9 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getAssetsByUserId } from '@/db/queries/assets';
 import { getSnapshotNearDate, parseSnapshotBreakdown } from '@/db/queries/net-worth';
 import { AssetKindCard } from '@/components/assets/asset-kind-card';
 import { AssetsEmptyState } from '@/components/assets/empty-state';
-import type { UserId } from '@/shared/types';
 import type { AssetRow } from '@/db/queries/assets';
 
 const KIND_LABELS: Record<string, string> = {
@@ -34,13 +32,8 @@ function utcDaysAgo(days: number): string {
 }
 
 export default async function AssetsPage() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) redirect('/sign-in');
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
 
   const date30dAgo = utcDaysAgo(30);
   const date1yAgo = utcDaysAgo(365);

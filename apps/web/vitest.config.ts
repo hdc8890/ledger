@@ -26,6 +26,11 @@ export default defineConfig({
         'src/lib/inngest.ts',
         'src/inngest/index.ts',
         'src/middleware.ts',
+        // Auth.js config singleton + handler re-export — framework glue;
+        // the testable logic lives in src/lib/auth-helpers.ts.
+        'src/auth.ts',
+        'src/app/api/auth/**',
+        'src/types/**',
         // Service worker — runs only in the SW context, not unit-testable.
         'src/app/sw.ts',
         // Generated / config-style.

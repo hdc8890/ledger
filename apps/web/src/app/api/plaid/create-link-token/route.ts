@@ -1,7 +1,6 @@
-import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { CountryCode, Products } from 'plaid';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { plaidClient } from '@/lib/plaid';
 
 // ---------------------------------------------------------------------------
@@ -13,14 +12,9 @@ import { plaidClient } from '@/lib/plaid';
 // ---------------------------------------------------------------------------
 
 export async function POST(): Promise<Response> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
   try {
@@ -29,7 +23,7 @@ export async function POST(): Promise<Response> {
       language: 'en',
       country_codes: [CountryCode.Us],
       products: [Products.Transactions],
-      user: { client_user_id: user.id },
+      user: { client_user_id: userId },
     });
 
     return NextResponse.json({ link_token: response.data.link_token });

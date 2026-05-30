@@ -1,12 +1,11 @@
-import { auth } from '@clerk/nextjs/server';
 import { redirect, notFound } from 'next/navigation';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getChatSessionById } from '@/db/queries/chat-sessions';
 import { getChatMessagesBySessionId } from '@/db/queries/chat-messages';
 import { listPendingProposals } from '@/db/queries/memories';
 import { chatRowsToUIMessages } from '@/shared/chat-utils';
 import { ChatWindow } from '@/components/chat/chat-window';
-import type { ChatSessionId, UserId } from '@/shared/types';
+import type { ChatSessionId } from '@/shared/types';
 
 interface ChatSessionPageProps {
   params: Promise<{ sessionId: string }>;
@@ -26,13 +25,8 @@ interface ChatSessionPageProps {
 export default async function ChatSessionPage({ params }: ChatSessionPageProps) {
   const { sessionId } = await params;
 
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) redirect('/sign-in');
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
 
   // Validate the session exists and belongs to this user.
   // A session may not exist yet if the UUID is freshly generated on the client

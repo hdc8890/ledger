@@ -57,7 +57,7 @@ function makeStep() {
 
 const USER_ID = 'user-uuid-1' as UserId;
 
-const FAKE_USER = { id: USER_ID, clerkId: 'clerk-1', settings: {}, householdId: null, createdAt: new Date(), updatedAt: new Date() };
+const FAKE_USER = { id: USER_ID, name: null, email: 'test@example.com', emailVerified: null, image: null, settings: {}, householdId: null, createdAt: new Date(), updatedAt: new Date() };
 
 const FAKE_BREAKDOWN = [
   { kind: 'home' as const, totalCents: 500_000_00n, count: 1 },
@@ -186,7 +186,7 @@ describe('handleNetWorthSnapshot', () => {
   });
 
   it('happy path — processes each user as a separate step', async () => {
-    const user2 = { ...FAKE_USER, id: 'user-uuid-2' as UserId, clerkId: 'clerk-2' };
+    const user2 = { ...FAKE_USER, id: 'user-uuid-2' as UserId };
     mockGetAllUsers.mockResolvedValue([FAKE_USER, user2]);
 
     const ctx: NetWorthSnapshotContext = { step: makeStep() };

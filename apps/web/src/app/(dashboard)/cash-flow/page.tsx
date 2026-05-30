@@ -1,12 +1,10 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getCashFlowSeries } from '@/db/queries/cash-flow';
 import { CashFlowBarChart } from '@/components/cash-flow/cash-flow-bar-chart';
 import { SavingsRateCard } from '@/components/cash-flow/savings-rate-card';
 import { TopCategoriesTable } from '@/components/cash-flow/top-categories-table';
 import { CashFlowEmptyState } from '@/components/cash-flow/empty-state';
-import type { UserId } from '@/shared/types';
 
 function formatMonthLabel(yearMonth: string): string {
   const [year, mon] = yearMonth.split('-');
@@ -16,13 +14,8 @@ function formatMonthLabel(yearMonth: string): string {
 }
 
 export default async function CashFlowPage() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) redirect('/sign-in');
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
 
   // Fetch 6 months newest-first; reverse for chronological bar chart display.
   const seriesNewestFirst = await getCashFlowSeries(userId, 6);

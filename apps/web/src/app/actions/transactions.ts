@@ -1,15 +1,14 @@
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getTransactionById, updateTransactionCategory, retagSameMerchantTransactions } from '@/db/queries/transactions';
 import { insertCategorizationRule } from '@/db/queries/categorization-rules';
 import { insertAuditEvent } from '@/db/queries/audit-events';
 import { saveMemory } from '@/ai/memory';
 import { CATEGORY_TAXONOMY } from '@/lib/enrich/categorize';
-import type { TransactionId, UserId } from '@/shared/types';
+import type { TransactionId } from '@/shared/types';
 
 export type CorrectCategoryResult = { error?: string };
 
@@ -30,11 +29,8 @@ export async function correctCategoryAction(
   transactionId: string,
   newCategory: string,
 ): Promise<CorrectCategoryResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   if (!(CATEGORY_TAXONOMY as readonly string[]).includes(newCategory)) {
     return { error: 'Invalid category' };
@@ -42,9 +38,8 @@ export async function correctCategoryAction(
 
   const txn = await getTransactionById(transactionId as TransactionId);
   if (!txn) return { error: 'Transaction not found' };
-  if (txn.userId !== user.id) return { error: 'Forbidden' };
+  if (txn.userId !== userId) return { error: 'Forbidden' };
 
-  const userId = user.id as UserId;
   const merchantKey = txn.merchantNormalized ?? txn.merchantRaw;
 
   try {
@@ -66,7 +61,7 @@ export async function correctCategoryAction(
 
       // 4. Audit event.
       await insertAuditEvent({
-        actor: clerkId,
+        actor: userId,
         action: 'txn.category_correct',
         entityType: 'transaction',
         entityId: transactionId,

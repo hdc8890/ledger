@@ -4,23 +4,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 const {
-  mockAuth,
-  mockFindUser,
+  mockGetCurrentUserId,
   mockGetProposalById,
   mockUpdateProposalStatus,
   mockListPendingProposals,
   mockSaveMemory,
 } = vi.hoisted(() => ({
-  mockAuth: vi.fn(),
-  mockFindUser: vi.fn(),
+  mockGetCurrentUserId: vi.fn(),
   mockGetProposalById: vi.fn(),
   mockUpdateProposalStatus: vi.fn(),
   mockListPendingProposals: vi.fn(),
   mockSaveMemory: vi.fn(),
 }));
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: mockAuth }));
-vi.mock('@/db/queries/users', () => ({ findUserByClerkId: mockFindUser }));
+vi.mock('@/lib/auth-helpers', () => ({ getCurrentUserId: mockGetCurrentUserId }));
 vi.mock('@/db/queries/memories', () => ({
   getProposalById: mockGetProposalById,
   updateProposalStatus: mockUpdateProposalStatus,
@@ -37,7 +34,7 @@ import {
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
-const USER = { id: 'user-uuid', clerkId: 'clerk_abc' };
+const USER = { id: 'user-uuid' };
 const PROPOSAL_ID = 'proposal-uuid';
 
 const pendingProposal = {
@@ -57,24 +54,17 @@ const pendingProposal = {
 describe('acceptProposalAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposalById.mockResolvedValue(pendingProposal);
     mockSaveMemory.mockResolvedValue(undefined);
     mockUpdateProposalStatus.mockResolvedValue({ ...pendingProposal, status: 'accepted' });
   });
 
   it('returns error when unauthenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
     const result = await acceptProposalAction(PROPOSAL_ID);
     expect(result).toEqual({ error: 'Unauthorized' });
     expect(mockSaveMemory).not.toHaveBeenCalled();
-  });
-
-  it('returns error when user is not in DB', async () => {
-    mockFindUser.mockResolvedValue(undefined);
-    const result = await acceptProposalAction(PROPOSAL_ID);
-    expect(result).toEqual({ error: 'User not found' });
   });
 
   it('returns error when proposal does not exist', async () => {
@@ -125,14 +115,13 @@ describe('acceptProposalAction', () => {
 describe('dismissProposalAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockGetProposalById.mockResolvedValue(pendingProposal);
     mockUpdateProposalStatus.mockResolvedValue({ ...pendingProposal, status: 'rejected' });
   });
 
   it('returns error when unauthenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
     const result = await dismissProposalAction(PROPOSAL_ID);
     expect(result).toEqual({ error: 'Unauthorized' });
   });
@@ -164,13 +153,12 @@ describe('dismissProposalAction', () => {
 describe('getPendingProposalsAction', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuth.mockResolvedValue({ userId: 'clerk_abc' });
-    mockFindUser.mockResolvedValue(USER);
+    mockGetCurrentUserId.mockResolvedValue(USER.id);
     mockListPendingProposals.mockResolvedValue([pendingProposal]);
   });
 
   it('returns error when unauthenticated', async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockGetCurrentUserId.mockResolvedValue(null);
     const result = await getPendingProposalsAction();
     expect(result).toEqual({ error: 'Unauthorized' });
   });

@@ -1,14 +1,13 @@
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import {
   getProposalById,
   updateProposalStatus,
   listPendingProposals,
 } from '@/db/queries/memories';
 import { saveMemory } from '@/ai/memory';
-import type { MemoryProposalId, UserId } from '@/shared/types';
+import type { MemoryProposalId } from '@/shared/types';
 import type { MemoryKind } from '@/db/queries/memories';
 import type { MemoryProposalRow } from '@/db/queries/memories';
 
@@ -27,18 +26,13 @@ export type ProposalActionResult = { error?: string };
 export async function acceptProposalAction(
   proposalId: string,
 ): Promise<ProposalActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   const proposal = await getProposalById(proposalId as MemoryProposalId);
   if (!proposal) return { error: 'Proposal not found' };
-  if (proposal.userId !== user.id) return { error: 'Forbidden' };
+  if (proposal.userId !== userId) return { error: 'Forbidden' };
   if (proposal.status !== 'pending') return { error: 'Proposal already resolved' };
-
-  const userId = user.id as UserId;
 
   try {
     // saveMemory computes the embedding and writes an audit event.
@@ -73,18 +67,13 @@ export async function acceptProposalAction(
 export async function dismissProposalAction(
   proposalId: string,
 ): Promise<ProposalActionResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
   const proposal = await getProposalById(proposalId as MemoryProposalId);
   if (!proposal) return { error: 'Proposal not found' };
-  if (proposal.userId !== user.id) return { error: 'Forbidden' };
+  if (proposal.userId !== userId) return { error: 'Forbidden' };
   if (proposal.status !== 'pending') return { error: 'Proposal already resolved' };
-
-  const userId = user.id as UserId;
 
   await updateProposalStatus(proposalId as MemoryProposalId, userId, 'rejected');
   return {};
@@ -102,12 +91,9 @@ export async function getPendingProposalsAction(): Promise<{
   proposals?: MemoryProposalRow[];
   error?: string;
 }> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return { error: 'Unauthorized' };
+  const userId = await getCurrentUserId();
+  if (!userId) return { error: 'Unauthorized' };
 
-  const user = await findUserByClerkId(clerkId);
-  if (!user) return { error: 'User not found' };
-
-  const proposals = await listPendingProposals(user.id as UserId);
+  const proposals = await listPendingProposals(userId);
   return { proposals };
 }

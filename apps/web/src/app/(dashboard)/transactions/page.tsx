@@ -1,18 +1,11 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getTransactionsForListView } from '@/db/queries/transactions';
 import { TransactionsTable } from '@/components/transactions/transactions-table';
-import type { UserId } from '@/shared/types';
 
 export default async function TransactionsPage() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) redirect('/sign-in');
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
   const transactions = await getTransactionsForListView(userId, { limit: 100 });
 
   return (

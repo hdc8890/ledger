@@ -44,7 +44,7 @@ function makeStep() {
 }
 
 function makeUser(id: string) {
-  return { id, clerkId: `clerk-${id}`, householdId: null, settings: {}, createdAt: new Date(), updatedAt: new Date() };
+  return { id, name: null, email: `${id}@example.com`, emailVerified: null, image: null, householdId: null, settings: {}, createdAt: new Date(), updatedAt: new Date() };
 }
 
 // ---------------------------------------------------------------------------

@@ -2,18 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { UserButton, useUser } from '@clerk/nextjs';
 import { cn } from '@/lib/utils';
 import { NAV_ITEMS, isNavItemActive } from './nav-items';
+import { SignOutButton } from './sign-out-button';
 
-export function Sidebar() {
+export function Sidebar({ displayName }: { displayName?: string | null }) {
   const pathname = usePathname();
-  const { user } = useUser();
-
-  const displayName =
-    user != null
-      ? (user.firstName ?? user.emailAddresses[0]?.emailAddress ?? 'User')
-      : null;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 hidden w-60 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 md:flex">
@@ -46,13 +40,15 @@ export function Sidebar() {
       </nav>
 
       {/* User area */}
-      <div className="flex items-center gap-3 border-t border-neutral-200 p-4 dark:border-neutral-800">
-        <UserButton />
-        {displayName != null && (
+      <div className="flex items-center justify-between gap-3 border-t border-neutral-200 p-4 dark:border-neutral-800">
+        {displayName != null ? (
           <span className="truncate text-sm font-medium text-neutral-700 dark:text-neutral-300">
             {displayName}
           </span>
+        ) : (
+          <span />
         )}
+        <SignOutButton />
       </div>
     </aside>
   );

@@ -17,7 +17,7 @@ export type InsertAuditEventInput = Omit<NewAuditEvent, 'id' | 'at'>;
  *
  * Usage:
  *   await insertAuditEvent({
- *     actor: clerkUserId,   // or 'system' / 'ai'
+ *     actor: userId,   // internal user UUID, or 'system' / 'ai'
  *     action: 'plaid.connect',
  *     entityType: 'plaid_item',
  *     entityId: item.id,

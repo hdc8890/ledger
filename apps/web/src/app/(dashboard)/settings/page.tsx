@@ -1,18 +1,11 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@clerk/nextjs/server';
-import { findUserByClerkId } from '@/db/queries/users';
+import { getCurrentUserId } from '@/lib/auth-helpers';
 import { getLlmUsageTotals } from '@/db/queries/llm-usage';
-import type { UserId } from '@/shared/types';
 
 export default async function SettingsPage() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) redirect('/sign-in');
-
-  const user = await findUserByClerkId(clerkId);
-  if (!user) redirect('/sign-in');
-
-  const userId = user.id as UserId;
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/sign-in');
   const usage = await getLlmUsageTotals(userId);
 
   const totalTokens = usage.totalInputTokens + usage.totalOutputTokens;
